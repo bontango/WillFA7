@@ -1,34 +1,12 @@
 -- 'WillFA7' a Williams SYS7 MPU on a low cost FPGA
--- Ralf Thelen 'bontango' 11.2022
+-- Ralf Thelen 'bontango' 02.2023
 -- www.lisy.dev
 --
--- v01 first working display strobes
--- v02 with roms
--- v03
--- v04 irq-gen adjusted
--- v05 with SD error and trigger for eeprom
--- v06
--- v07 ram sys7 seperate (still not working), blanking & eeprom timer implemented, game_options corrected
--- v08 diag switches with int
--- v09 correct lamp and solenoid assigment
--- v010 solenoid trigger 60ms pulse / 200ms seconds recycle time
--- v011 -- reading dips continous -- advance is 'diag' in case of option(6) = 0
--- v012 -- memory protection for sys6&7 implemented
--- v013 -- do eprom read before game start
--- v014 new structure 'boot_phases' and eeprom init to 0xffh, which is 0x0fh for cmos (factory reset)
--- v015 negated lamp rows
--- v016 flip flops now clocked with cpu_clk
--- v017 cpu clock adjusted 50:50, added game_on trigger for cmos eeprom save
--- v018 added GameOn Signalto control Special Solenoids
--- v019 timing boot message corrected
--- v020 PLL for clock, re ad the dips with cpu_clk, gen_irq seperate, blanking with clk_50
--- v021 cpu_nmi one pulse only
--- v022 eeprom v0.8 with no read/write with init flag (preinitialized cmos ram)
--- v023 eeprom v0.9 has 2 second delay after trigger active plus after read, added advance switch to eeprom trigger
---
+-- v1.00 for HW v1.0 based on v024 for HW v0.5
+
 -- TODo
 -- sys7
--- sound & comma
+
 
 					  
 library ieee;
@@ -54,26 +32,22 @@ entity WillFA7 is
 		--displays
 		disp_strobe: out 	std_logic_vector(3 downto 0);
 		disp_bcd: out 	std_logic_vector(7 downto 0);
-		comma12: out std_logic;
-		comma34: out std_logic;
 		
 		--switches
 		sw_strobe: buffer 	std_logic_vector(7 downto 0);
 		sw_return: in 	std_logic_vector(7 downto 0);
 
-		--lamps
+		--lamps & sound/comma display SYS7 plus 'extra LED'
 		lamps: buffer 	std_logic_vector(7 downto 0);
 		lamp_strobe_sel: buffer std_logic; --RTH debug only, switch back to out
 		lamp_row_sel: out std_logic;
+		sound_com_sel: out std_logic;
 		
 		--solenoids (shared)
 		solenoids: out		std_logic_vector(7 downto 0); 
 		sol_1_8_sel: buffer std_logic;
 		sol_9_16_sel: out std_logic;
 		sol_spec_sel: out std_logic;
-		
-		--sound
-		sound: out 	std_logic_vector(4 downto 0);
 		
 		-- spec solenoid triggers
 		SPC_Sol_Trig: in 	std_logic_vector(6 downto 1);
@@ -82,6 +56,11 @@ entity WillFA7 is
 		Mem_prot: in std_logic;
 		Advance: in std_logic;
 		up_down: in std_logic;
+		Enter_SW: in std_logic;
+		Diag_SW: in std_logic;
+				
+		--dips Williams
+		W_PA_DIP: in std_logic_vector(3 downto 0); 
 		
 		--dips WillFA7
 		Dip_Ret_1: in std_logic;
@@ -140,7 +119,9 @@ signal pia1_irq_a	:	std_logic;
 signal pia1_irq_b	:	std_logic;
 signal pia1_cs		:	std_logic;
 signal pia1_pa_o	:	std_logic_vector(7 downto 0);
+signal pia1_pa_i	:	std_logic_vector(7 downto 4);
 signal pia1_ca1	:	std_logic;
+signal pia1_ca2	:	std_logic;
 signal pia1_cb1	:	std_logic;
 
 -- pia2
@@ -171,8 +152,8 @@ signal pia5_pa_o	:	std_logic_vector(7 downto 0);
 signal pia5_pb_o	:	std_logic_vector(7 downto 0);
 
 --IC19 5101 cmos ram
-signal cmos_dout_4bit	: 	std_logic_vector(3 downto 0);
-signal cmos_dout_8bit	: 	std_logic_vector(7 downto 0);
+signal cmos_dout_a	: 	std_logic_vector(7 downto 0);
+signal cmos_dout_b	: 	std_logic_vector(7 downto 0);
 signal cmos_cs			:	std_logic;
 signal cmos_wren			:	std_logic;
 
@@ -208,8 +189,8 @@ signal SDcard_MOSI	:	std_logic;
 signal SDcard_CLK		:	std_logic; 
 signal SDcard_error	:	std_logic:='1'; --active low
 
--- EEprom we use 128 Bytes per game
-signal address_eeprom	:  std_logic_vector(6 downto 0);
+-- EEprom 
+signal address_eeprom	:  std_logic_vector(7 downto 0);
 signal data_eeprom	:  std_logic_vector(7 downto 0);
 signal wr_ram			:  std_logic;
 signal EEprom_MOSI	:	std_logic; 
@@ -243,35 +224,26 @@ signal dig2					:  std_logic_vector(3 downto 0);
 signal diag				:	std_logic; 
 signal diag_stable	:	std_logic; 
 
+-- comma & sound system7
+signal comma12 	: std_logic;
+signal comma34		: std_logic;
+signal sound		: std_logic_vector(4 downto 0);
+signal diag_LED	: std_logic;
+		
 -- trigger
 --signal credit_sw			: std_logic;
 
 		
 begin
-reset_h <= (not reset_l); -- controlled via eeprom boot_phase(3)
 
-----------------------
--- debug TO BE CLEANED IN PRODUTION !!! RTH
-----------------------
---comma34 <= reset_l; 
---comma12 <= cpu_nmi;
---sound(0) <= ram_S4_cs;
---sound(1) <= mem_prot_ram_cs;
---sound(2) <= ram_cmos_cs;
---sound(3) <= cpu_rw;
-
-
-----------------------
--- game starts here
-----------------------
-LED_status <= not pia1_pa_o(5); --upper LED (SYS4)
-LED_sd_Error <= not pia1_pa_o(4); --lower LED (SYS4)
+--LED_status <= not pia1_pa_o(5); --upper LED (SYS4)
+--LED_sd_Error <= not pia1_pa_o(4); --lower LED (SYS4)
 
 --LED_status <= not pia1_pa_o(4); --upper LED (SYS7)
 --LED_sd_Error <= not pia1_pa_o(5); --lower LED (SYS7)
 
---LED_status <= Mem_prot; --RTH todo
---LED_sd_Error <= SDcard_error;
+LED_status <= not boot_phase(0); -- for display blanking
+LED_sd_Error <= SDcard_error;
 LED_active <= blanking;
 
 ----------------
@@ -304,7 +276,7 @@ port map(
 	strobe	=> bm_disp_strobe,
 	bcd	=> bm_disp_bcd,
 	-- input (display data)
-	display1	=> ( x"F",x"F",x"F",x"0",x"2",x"3" ),
+	display1	=> ( x"F",x"F",x"F",x"1",x"0",x"0" ),
 	display2	=> ( x"F",x"F",x"F", x"0", g_dig1, g_dig0),
 	display3	=> ( x"0",x"5",x"0",x"9",x"6",x"3" ),
 	display4	=> ( x"F",x"F",x"F",x"F",b_dig1, b_dig0),
@@ -376,7 +348,7 @@ port map(
 	address_eeprom	=> address_eeprom,
 	data_eeprom	=> data_eeprom,
 	wr_ram => wr_ram,
-	q_ram => cmos_dout_8bit,
+	q_ram => cmos_dout_b,
 	-- Control/Data Signals,   
 	i_Rst_L  => boot_phase(2),
 	-- PMOD SPI Interface
@@ -400,11 +372,14 @@ port map(
 -----------------------------------------------
 -- phase 3: activated by eeprom after first read/write
 -- now williams rom take control
+-- game starts here
 ---------------------------------------------------
+
 reset_l <= boot_phase(3);
+reset_h <= (not reset_l);
 
 ----------------------
--- settings
+-- Diag
 ----------------------
 --sys3..4
 --pia1_ca1 <= advance; -- Advance
@@ -413,7 +388,32 @@ reset_l <= boot_phase(3);
 pia1_ca1 <= not ( not advance or not cpu_irq); 
 pia1_cb1 <= not ( not up_down or not cpu_irq); 
 
+-- BT28 IC Bus Driver Receiver
+--pia1_pa_i <= W_PA_DIP when Enter_SW = '0' else x"F"; -- enter SW activates input
+pia1_pa_i <= x"F";
+--Diag_LED <= pia1_pa_o(5) when pia1_ca2 = '1' else '1'; --upper LED (SYS4)-  pia1 ca2 activates output
+Diag_LED <= not pia1_pa_o(5) when game_option(1) = '1' else eeprom_trigger; -- to show when eeprom has saved
+diag <= not Diag_SW; -- NMI
 
+DIAGSTABLE: entity work.Cross_Slow_To_Fast_Clock
+port map(
+   i_D => diag,
+	o_Q => diag_stable,
+   i_Fast_Clk => cpu_clk
+	);
+	
+DIAGSW: entity work.one_pulse_only
+port map(
+   sig_in => diag_stable,
+	sig_out => cpu_nmi,
+   clk_in => cpu_clk,
+	rst => reset_l
+	);
+
+
+----------------------
+-- Flipper activation
+----------------------
 sp_solenoid(6) <= GameOn; --Flipper
 sp_solenoid(7) <= GameOn; --Flipper
 
@@ -438,23 +438,6 @@ cpu_irq <= pia1_irq_a or pia1_irq_b
 			  or pia4_irq_a or pia4_irq_b
 			  or pia5_irq_a or pia5_irq_b
 			  or gen_irq;			  
-
-diag <= advance when game_option(6) = '0' else '0'; -- RTH because of missing diag switch
-
-DIAGSTABLE: entity work.Cross_Slow_To_Fast_Clock
-port map(
-   i_D => diag,
-	o_Q => diag_stable,
-   i_Fast_Clk => cpu_clk
-	);
-	
-DIAGSW: entity work.one_pulse_only
-port map(
-   sig_in => diag_stable,
-	sig_out => cpu_nmi,
-   clk_in => cpu_clk,
-	rst => reset_l
-	);
 
 ------------------
 -- address decoding 
@@ -529,7 +512,7 @@ mem_prot_active <= mem_prot_ram_cs and mem_prot;
 	rom4_dout when rom4_cs = '1' else	
 	rom5_dout when rom5_cs = '1' else	
 	ram_dout when ram_cs = '1' else
-	"0000" & cmos_dout_4bit when cmos_cs = '1' else		--RTH changed from "1111"
+	cmos_dout_a when cmos_cs = '1' else
 	x"FF";
 
 -- detect credit and test_switch for trigger
@@ -614,7 +597,7 @@ port map(
 FF_SOLS: entity work.flipflops
 port map(
 	clk_in => cpu_clk,
-	rst => reset_h,
+	rst => blanking,
 	sel1 => sol_1_8_sel,
 	sel2 => sol_9_16_sel,
 	sel3 => sol_spec_sel,		
@@ -651,10 +634,10 @@ port map(
 FF_LAMPSS: entity work.flipflops
 port map(
 	clk_in => cpu_clk,
-	rst => reset_h,
+	rst => blanking,
 	sel1 => lamp_strobe_sel,
 	sel2 => lamp_row_sel,
-	sel3 => open,		
+	sel3 => sound_com_sel,		
 	ff_data_out	=> lamps,
    ff1_data_in(0) => pia3_pb_o(6), --lamp strobe 7
 	ff1_data_in(1) => pia3_pb_o(4), --lamp strobe 5
@@ -672,7 +655,14 @@ port map(
 	ff2_data_in(5) => not pia3_pa_o(2), --lamp row 3
 	ff2_data_in(6) => not pia3_pa_o(5), --lamp row 6
 	ff2_data_in(7) => not pia3_pa_o(6), --lamp row 7
-	ff3_data_in => "00000000"
+	ff3_data_in(0) => comma34,
+	ff3_data_in(1) => Diag_LED,
+	ff3_data_in(2) => sound(3),
+	ff3_data_in(3) => sound(0),
+	ff3_data_in(4) => sound(1),
+	ff3_data_in(5) => sound(2),
+	ff3_data_in(6) => sound(4),
+	ff3_data_in(7) => comma12
 );
 
 
@@ -697,7 +687,7 @@ port map(
 --	 IRQA IRQ/'
 --	 IRQB IRQ/'
 --	 PA0-3 Digit Select
---	 PA4-7 Diagnostic LED (do make use here sense?)
+--	 PA4-7 Diagnostic LED 
 --	 PB0-8 BCD output
 --	 CA1	 Diag in
 --  CA2   Diag LED control?
@@ -714,11 +704,11 @@ port map(
 	data_out => pia1_dout, 
 	irqa => pia1_irq_a,   
 	irqb => pia1_irq_b,    
-	pa_i => x"FF",
+	pa_i => x"F" & pia1_pa_i(7 downto 4),
 	pa_o => pia1_pa_o,
 	ca1 => pia1_ca1,
 	ca2_i => '1',
-	ca2_o => open, --RTH
+	ca2_o => pia1_ca2,
 	pb_i => x"FF",
 	pb_o => game_disp_bcd,
 	cb1 => pia1_cb1,
@@ -894,12 +884,12 @@ IC19: entity work.R5101 -- 5101 RAM 128Byte (256 * 4bit)
 		address_a	=> cpu_addr(7 downto 0),
 		address_b   => address_eeprom,
 		clock			=> clk_50,
-		data_a		=> cpu_dout (3 DOWNTO 0), -- Williams use the lower 4 bits
-		data_b		=> data_eeprom, --8bit
+		data_a		=> cpu_dout,
+		data_b		=> data_eeprom,
 		wren_a 		=> cmos_wren,
 		wren_b 		=> wr_ram,
-		q_a			=> cmos_dout_4bit,
-		q_b			=> cmos_dout_8bit
+		q_a			=> cmos_dout_a,
+		q_b			=> cmos_dout_b
 );
 
 
