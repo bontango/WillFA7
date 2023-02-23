@@ -59,6 +59,20 @@
 -- the carry bit was not cleared correctly.
 -- This error was picked up by Michael Hassenfratz.
 --
+-- 17th Feb 2023 0.81 					bontango www.lisy.dev
+-- daa did not set Z-bit in case out_alu is zero
+-- todo: check other flags for daa
+--
+-- 18th Feb 2023 0.82 					bontango www.lisy.dev
+-- detected by Dukov on open core https://opencores.org/projects/system6801/issues/2
+-- Test instruction does not clear carry bit. alu_tst declared but never used, alu_st8 is used for the test instruction 
+-- but it does not affect the carry bit. Fix: use alu_tst for the test instructions and have it clear the carry bit.
+--
+-- 23th Feb 2023 0.83 					bontango www.lisy.dev
+-- IRQ implementation set an invalid stack pointer in case opcode was 'LDS' at return instruction
+-- bad stuff may also happened in case of other instructions because of 'pre fetch' of cpu core (not tested)
+-- after IRQ ( and NMI ) opcode is resetted to 'nop' now while pushing data to stack
+--
 
 library ieee;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -183,7 +197,6 @@ begin
 -- Address bus multiplexer
 --
 ----------------------------------
-
 addr_mux: process( clk, addr_ctrl, pc, ea, sp, iv )
 begin
   case addr_ctrl is
@@ -704,7 +717,7 @@ begin
 	   out_alu   <= not left;
   	 when alu_clr | alu_ld8 | alu_ld16 =>
 	   out_alu   <= right; 	         -- clr, ld
-	 when alu_st8 | alu_st16 =>
+	 when alu_st8 | alu_st16 | alu_tst=> --RTH 0.82
 	   out_alu   <= left;
 	 when alu_daa =>
 	   out_alu   <= left + ("00000000" & daa_reg);
@@ -753,7 +766,7 @@ begin
 	   end if;
   	 when alu_sec =>
       cc_out(CBIT) <= '1';
-  	 when alu_clc =>
+  	 when alu_clc | alu_tst => --RTH 0.82
       cc_out(CBIT) <= '0';
     when alu_tap =>
       cc_out(CBIT) <= left(CBIT);
@@ -770,7 +783,7 @@ begin
   	      alu_inc | alu_dec | 
 			alu_neg | alu_com | alu_clr |
 			alu_rol8 | alu_ror8 | alu_asr8 | alu_asl8 | alu_lsr8 |
-		   alu_ld8  | alu_st8 =>
+		   alu_ld8  | alu_st8 | alu_daa | alu_tst => -- RTH 0.82
       cc_out(ZBIT) <= not( out_alu(7)  or out_alu(6)  or out_alu(5)  or out_alu(4)  or
 	                        out_alu(3)  or out_alu(2)  or out_alu(1)  or out_alu(0) );
   	 when alu_add16 | alu_sub16 |
@@ -796,7 +809,7 @@ begin
 	      alu_and | alu_ora | alu_eor |
   	      alu_rol8 | alu_ror8 | alu_asr8 | alu_asl8 | alu_lsr8 |
   	      alu_inc | alu_dec | alu_neg | alu_com | alu_clr |
-			alu_ld8  | alu_st8 =>
+			alu_ld8  | alu_st8 | alu_tst =>
       cc_out(NBIT) <= out_alu(7);
 	 when alu_add16 | alu_sub16 |
 	      alu_lsl16 | alu_lsr16 |
@@ -872,7 +885,7 @@ begin
       cc_out(VBIT) <= left(VBIT);
 	 when alu_and | alu_ora | alu_eor | alu_com |
 	      alu_st8 | alu_st16 | alu_ld8 | alu_ld16 |
-		   alu_clv =>
+		   alu_clv | alu_tst => -- RTH 0.82
       cc_out(VBIT) <= '0';
     when alu_sev =>
 	   cc_out(VBIT) <= '1';
@@ -1398,8 +1411,9 @@ process( state, op_code, cc, ea, irq, nmi_req, nmi_ack, hold, halt )
 			      next_state <= halt_state;
 				 -- service non maskable interrupts
 			    elsif (nmi_req = '1') and (nmi_ack = '0') then
-               pc_ctrl    <= latch_pc;
-				   nmi_ctrl   <= set_nmi;
+				  pc_ctrl    <= latch_pc;
+				  nmi_ctrl   <= set_nmi;
+				  op_ctrl <= reset_op; --RTH 0.83
 			      next_state <= int_pcl_state;
 				 -- service maskable interrupts
 			    else
@@ -1415,8 +1429,9 @@ process( state, op_code, cc, ea, irq, nmi_req, nmi_ack, hold, halt )
 					-- IRQ is level sensitive
 					--
 				   if (irq = '1') and (cc(IBIT) = '0') then
-                 pc_ctrl    <= latch_pc;
-			        next_state <= int_pcl_state;
+					pc_ctrl    <= latch_pc;
+					op_ctrl <= reset_op; --RTH 0.83
+			        next_state <= int_pcl_state;					  
                else
 				   -- Advance the PC to fetch next instruction byte
                  pc_ctrl    <= inc_pc;
@@ -1919,7 +1934,7 @@ process( state, op_code, cc, ea, irq, nmi_req, nmi_ack, hold, halt )
 					  cc_ctrl    <= load_cc;
 		         when "1101" => -- tst
 		           right_ctrl <= zero_right;
-					  alu_ctrl   <= alu_st8;
+					  alu_ctrl   <= alu_tst; -- RTH v.082
 					  acca_ctrl  <= latch_acca;
 					  cc_ctrl    <= load_cc;
 		         when "1110" => -- jmp
@@ -2003,7 +2018,7 @@ process( state, op_code, cc, ea, irq, nmi_req, nmi_ack, hold, halt )
 					  cc_ctrl    <= load_cc;
 		         when "1101" => -- tst
 		           right_ctrl <= zero_right;
-					  alu_ctrl   <= alu_st8;
+					  alu_ctrl   <= alu_tst; -- RTH v.082					  
 					  accb_ctrl  <= latch_accb;
 					  cc_ctrl    <= load_cc;
 		         when "1110" => -- jmp
@@ -3235,7 +3250,7 @@ process( state, op_code, cc, ea, irq, nmi_req, nmi_ack, hold, halt )
 				       next_state <= write8_state;
 		           when "1101" => -- tst
 		             right_ctrl <= zero_right;
-					    alu_ctrl   <= alu_st8;
+					    alu_ctrl   <= alu_tst; -- RTH v.082					    
 					    cc_ctrl    <= load_cc;
 				       md_ctrl    <= latch_md;
 				       next_state <= fetch_state;
