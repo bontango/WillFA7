@@ -11,11 +11,7 @@
 -- v1.06 secured handling of special solenoids with flipflops v1.1
 -- v1.07 more secured handling of special solenoids with spec_sol_trig v0.3
 -- v1.08 added slow to fast clock for special solenoid switches, added debouncer for spec_sol_trigger(v0.4)
--- v1.09 pulsetime for spcial solenoids adjustable spec_sol_trigger(v0.5)
--- v1.10 23.12.2023 deactivate sp_solenoid_mpu(1), as it pulses during game on, selftest on spec sol1 will not work
 -- TODo
--- check sound solenoids
--- v1.11 with correct cpu_clk statement in .sdc, no timing errors anymore
 
 
 					  
@@ -248,9 +244,6 @@ signal diag_LED	: std_logic;
 		
 begin
 
---solenoids(0) <= cpu_clk;
---solenoids(1) <= mem_clk;
-
 --LED_status <= not pia1_pa_o(5); --upper LED (SYS4)
 --LED_sd_Error <= not pia1_pa_o(4); --lower LED (SYS4)
 
@@ -291,7 +284,7 @@ port map(
 	strobe	=> bm_disp_strobe,
 	bcd	=> bm_disp_bcd,
 	-- input (display data)
-	display1	=> ( x"F",x"F",x"F",x"1",x"1",x"1" ), 
+	display1	=> ( x"F",x"F",x"F",x"1",x"0",x"8" ),
 	display2	=> ( x"F",x"F",x"F", x"0", g_dig1, g_dig0),
 	display3	=> ( x"0",x"5",x"0",x"9",x"6",x"3" ),
 	display4	=> ( x"F",x"F",x"F",x"F",b_dig1, b_dig0),
@@ -605,12 +598,13 @@ port map(
 --	clk_out		=> dip_clk	
 --	);
 	
+	
 --------------------
 -- Flip Flop Solenoids
 ------------------
 FF_SOLS: entity work.flipflops
 port map(
-	clk_in => cpu_clk, 
+	clk_in => cpu_clk,
 	rst => blanking,
 	sel1 => sol_1_8_sel,
 	sel2 => sol_9_16_sel,
@@ -630,7 +624,7 @@ port map(
 	ff2_data_in(3) => pia4_pb_o(2), -- Sol_11
 	ff2_data_in(4) => pia4_pb_o(3), -- Sol_12
 	ff2_data_in(5) => pia4_pb_o(6), -- Sol_15
-	ff2_data_in(6) => pia4_pb_o(7), -- Sol_16 
+	ff2_data_in(6) => pia4_pb_o(7), -- Sol_16
 	ff2_data_in(7) => pia4_pb_o(0), -- Sol_9
 	ff3_data_in(0) => sp_solenoid(4), -- Spec_Sol_5
 	ff3_data_in(1) => sp_solenoid(3),-- Spec_Sol_4
@@ -641,7 +635,6 @@ port map(
 	ff3_data_in(6) => sp_solenoid(0),-- Spec_Sol_1
 	ff3_data_in(7) => sp_solenoid(5) -- Spec_Sol_6
 );
-
 
 --------------------
 -- Flip Flop Lamps
@@ -743,7 +736,7 @@ port map(
 --  CB2  SS3
 PIA2: entity work.PIA6821
 port map(
-	clk => cpu_clk,    
+	clk => cpu_clk,   
    rst => reset_h,     
    cs => pia2_cs,     
    rw => cpu_rw,    
@@ -924,8 +917,7 @@ port map(
 ------------------
 -- special solenoids
 ------------------
---sp_solenoid(0) <= ( sp_solenoid_trig(1) or not sp_solenoid_mpu(1) ) and GameOn; RTHTEST
-sp_solenoid(0) <= sp_solenoid_trig(1) and GameOn; --temp for v110
+sp_solenoid(0) <= ( sp_solenoid_trig(1) or not sp_solenoid_mpu(1) ) and GameOn;
 sp_solenoid(1) <= ( sp_solenoid_trig(2) or not sp_solenoid_mpu(2) ) and GameOn;
 sp_solenoid(2) <= ( sp_solenoid_trig(3) or not sp_solenoid_mpu(3) ) and GameOn;
 sp_solenoid(3) <= ( sp_solenoid_trig(4) or not sp_solenoid_mpu(4) ) and GameOn;
@@ -943,7 +935,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(1),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(1)
 	); 
 META_SPECIAL2: entity work.Cross_Slow_To_Fast_Clock
@@ -957,7 +948,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(2),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(2)
 	); 
 META_SPECIAL3: entity work.Cross_Slow_To_Fast_Clock
@@ -971,7 +961,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(3),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(3)
 	); 
 META_SPECIAL4: entity work.Cross_Slow_To_Fast_Clock
@@ -985,7 +974,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(4),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(4)
 	); 
 META_SPECIAL5: entity work.Cross_Slow_To_Fast_Clock
@@ -999,7 +987,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(5),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(5)
 	); 	
 META_SPECIAL6: entity work.Cross_Slow_To_Fast_Clock
@@ -1013,7 +1000,6 @@ port map(
    clk_in => cpu_clk,
 	i_Rst_L => '1', --RTH: gameon
    trigger => SPC_Sol_Trig_stable(6),
-	pulse_cfg => game_option(3 downto 2),
 	solenoid => sp_solenoid_trig(6)
 	); 
 	
