@@ -4,13 +4,15 @@
 -- Mirrors a 256-byte CMOS region between FPGA dual-port RAM (R5101 port B)
 -- and an external SPI EEPROM (M95256 / M95512).
 --
--- Behavior preserved bit-for-bit vs. v097:
---   * boot read 0x00..0xFF → R5101 + shadow cache
+-- Behavior:
+--   * boot read 0x00..0xFF → R5101 (init mode keeps BRAM-init pattern)
 --   * idle until edge on w_trigger, then 1us glitch check + 1s pre-write
---   * shadow-cache scan: write only bytes where shadow /= q_ram
+--   * read-before-write scan: per byte READ EEPROM, compare with q_ram,
+--     write only on mismatch (no shadow cache → no LE/BRAM cost)
 --   * per-byte: WREN → WRITE → poll RDSR until WIP=0 → READ → compare
 --   * delayed re-verify: 100 ms wait, READ again; only second match commits
 --   * up to 2 retries on mismatch, latch error, drive 1 Hz blink output
+--   * LED blinks only after the first actual write of a save cycle
 --
 -- Structure changed (best-practice rewrite):
 --   * generics for all timings + clock rates
@@ -63,20 +65,6 @@ end EEprom;
 architecture Behavioral of EEprom is
 
     -- ------------------------------------------------------------------
-    -- 256x8 single-port BRAM (M9K) for shadow cache
-    -- 2-cycle read latency: registered address + registered q
-    -- ------------------------------------------------------------------
-    component shadow_ram
-        port (
-            address : in  std_logic_vector(7 downto 0);
-            clock   : in  std_logic := '1';
-            data    : in  std_logic_vector(7 downto 0);
-            wren    : in  std_logic;
-            q       : out std_logic_vector(7 downto 0)
-        );
-    end component;
-
-    -- ------------------------------------------------------------------
     -- M95xxx SPI opcodes
     -- ------------------------------------------------------------------
     constant CMD_READ  : std_logic_vector(7 downto 0) := x"03";
@@ -91,14 +79,15 @@ architecture Behavioral of EEprom is
     type phase_t is (
         PH_BOOT_CHECK,         -- decide: read or skip
         PH_BOOT_READ,          -- issue READ for current address
-        PH_BOOT_LATCH,         -- write rx into RAM + shadow, hold wr_ram
+        PH_BOOT_LATCH,         -- write rx into R5101, hold wr_ram
         PH_BOOT_NEXT,          -- next address or finish
         PH_INIT_DELAY,         -- 2 s before accepting triggers
         PH_IDLE,               -- watch for w_trigger edge
         PH_ARMED,              -- 1 us glitch check
         PH_SAVE_PREP,          -- 1 s pre-write delay, clear error/retry
         PH_SCAN_SETTLE,        -- R5101 port-B address settle
-        PH_SCAN_COMPARE,       -- shadow vs q_ram → WREN or skip
+        PH_SCAN_READ,          -- READ current byte from EEPROM
+        PH_SCAN_DECIDE,        -- compare RX vs q_ram → WREN or skip
         PH_WRITE_WREN,         -- send WREN
         PH_WRITE_DATA,         -- send WRITE+addr+data, snapshot verify_byte
         PH_POLL_RDSR,          -- send RDSR
@@ -170,28 +159,17 @@ architecture Behavioral of EEprom is
     signal blink_div     : integer range 0 to 25_000_000;
     signal blink_q       : std_logic;
 
-    -- 256-byte shadow cache (external single-port BRAM)
-    -- Address driven directly from address_eeprom; 2-cycle read latency.
-    signal sh_data       : std_logic_vector(7 downto 0);
-    signal sh_wren       : std_logic;
-    signal sh_q          : std_logic_vector(7 downto 0);
-
     signal wr_ram_i      : std_logic;
 
-    -- '1' while we are inside the save sequence (PH_SAVE_PREP..PH_NEXT_BYTE).
-    -- Used so the LED can blink during a save (visible "do not power off")
-    -- without also blinking during the boot/idle phases.
-    signal save_active   : std_logic;
+    -- Latched '1' as soon as the FSM enters PH_WRITE_WREN during a save
+    -- cycle (i.e. at least one byte differs and is being written). Cleared
+    -- on transition back to PH_IDLE. Drives the LED blink so reads-only
+    -- saves stay dark.
+    signal write_seen    : std_logic;
 
 begin
 
     wr_ram <= wr_ram_i;
-
-    save_active <= '0' when (phase = PH_BOOT_CHECK or phase = PH_BOOT_READ or
-                             phase = PH_BOOT_LATCH or phase = PH_BOOT_NEXT or
-                             phase = PH_INIT_DELAY or phase = PH_IDLE or
-                             phase = PH_ARMED)
-                       else '1';
 
     -- ------------------------------------------------------------------
     -- SPI pin mux: which master currently owns the bus
@@ -217,10 +195,10 @@ begin
         SS_Cmd  when TX_Start_Cmd  = '1' else
         '1';
 
-    -- Blink at 1 Hz while a save is running OR when an error is latched.
-    -- The top-level routes this to LED_active only during o_wr_in_progress='0',
-    -- so the LED stays dark during boot and shows display-blanking when idle.
-    EEprom_error <= blink_q when (save_active = '1' or error_latched = '1') else '0';
+    -- Blink at 1 Hz once the save cycle has actually written a byte
+    -- (write_seen) OR an error is latched. Reads-only saves keep the LED
+    -- dark. Top-level mux gates this through o_wr_in_progress='0'.
+    EEprom_error <= blink_q when (write_seen = '1' or error_latched = '1') else '0';
 
     -- ------------------------------------------------------------------
     -- SPI_Master instances (unchanged interface, same 100 kHz)
@@ -267,18 +245,6 @@ begin
             TX_Start => TX_Start_Cmd, TX_Done => TX_Done_Cmd,
             clk => i_Clk,
             do_not_disable_SS => '0', do_not_enable_SS => '0'
-        );
-
-    -- ------------------------------------------------------------------
-    -- Shadow cache RAM (M9K block, 256x8, single-port)
-    -- ------------------------------------------------------------------
-    SHADOW_INST : shadow_ram
-        port map (
-            address => address_eeprom,
-            clock   => i_Clk,
-            data    => sh_data,
-            wren    => sh_wren,
-            q       => sh_q
         );
 
     -- ------------------------------------------------------------------
@@ -388,13 +354,12 @@ begin
             byte_retry      <= 0;
             reverify_pass   <= '0';
             error_latched   <= '0';
+            write_seen      <= '0';
             blink_div       <= 0;
             blink_q         <= '0';
             old_w_trigger   <= (others => '0');
             spi_op          <= OP_NONE;
             spi_start       <= '0';
-            sh_wren         <= '0';
-            sh_data         <= (others => '0');
             TX_Data_R       <= (others => '0');
             TX_Data_W       <= (others => '0');
             TX_Data_Stat    <= (others => '0');
@@ -409,9 +374,8 @@ begin
                 blink_div <= blink_div + 1;
             end if;
 
-            -- default: spi_start and sh_wren are one-cycle pulses
+            -- default: spi_start is a one-cycle pulse
             spi_start <= '0';
-            sh_wren   <= '0';
 
             case phase is
 
@@ -435,8 +399,6 @@ begin
                     if spi_done_p = '1' then
                         data_eeprom <= RX_Data_R(7 downto 0);
                         wr_ram_i    <= '1';
-                        sh_data     <= RX_Data_R(7 downto 0);
-                        sh_wren     <= '1';
                         c_count     <= 0;
                     elsif wr_ram_i = '1' then
                         if c_count < HOLD_CYCLES then
@@ -497,6 +459,7 @@ begin
                     else
                         c_count        <= 0;
                         error_latched  <= '0';
+                        write_seen     <= '0';
                         byte_retry     <= 0;
                         reverify_pass  <= '0';
                         address_eeprom <= (others => '0');
@@ -504,22 +467,30 @@ begin
                         phase          <= PH_SCAN_SETTLE;
                     end if;
 
-                -- ===== shadow scan =====
+                -- ===== read-before-write scan =====
                 when PH_SCAN_SETTLE =>
                     if scan_cnt < SCAN_SETTLE_CYCLES then
                         scan_cnt <= scan_cnt + 1;
                     else
                         scan_cnt <= 0;
-                        phase    <= PH_SCAN_COMPARE;
+                        phase    <= PH_SCAN_READ;
                     end if;
 
-                when PH_SCAN_COMPARE =>
-                    if sh_q /= q_ram then
-                        byte_retry    <= 0;
-                        reverify_pass <= '0';
-                        phase         <= PH_WRITE_WREN;
-                    else
-                        phase <= PH_NEXT_BYTE;
+                when PH_SCAN_READ =>
+                    TX_Data_R <= CMD_READ & selection & address_eeprom & x"00";
+                    spi_op    <= OP_READ;
+                    spi_start <= '1';
+                    phase     <= PH_SCAN_DECIDE;
+
+                when PH_SCAN_DECIDE =>
+                    if spi_done_p = '1' then
+                        if RX_Data_R(7 downto 0) /= q_ram then
+                            byte_retry    <= 0;
+                            reverify_pass <= '0';
+                            phase         <= PH_WRITE_WREN;
+                        else
+                            phase <= PH_NEXT_BYTE;
+                        end if;
                     end if;
 
                 -- ===== per-byte write + verify =====
@@ -527,6 +498,7 @@ begin
                     TX_Data_Cmd <= CMD_WREN;
                     spi_op      <= OP_WREN;
                     spi_start   <= '1';
+                    write_seen  <= '1';
                     phase       <= PH_WRITE_DATA;
 
                 when PH_WRITE_DATA =>
@@ -574,9 +546,7 @@ begin
                                 c_count       <= 0;
                                 phase         <= PH_REVERIFY_DELAY;
                             else
-                                -- second verify ok → commit shadow
-                                sh_data       <= verify_byte;
-                                sh_wren       <= '1';
+                                -- second verify ok → byte committed in EEPROM
                                 reverify_pass <= '0';
                                 byte_retry    <= 0;
                                 phase         <= PH_NEXT_BYTE;
@@ -603,7 +573,8 @@ begin
 
                 when PH_NEXT_BYTE =>
                     if address_eeprom = x"FF" then
-                        phase <= PH_IDLE;
+                        write_seen <= '0';
+                        phase      <= PH_IDLE;
                     else
                         address_eeprom <= std_logic_vector(unsigned(address_eeprom) + 1);
                         scan_cnt       <= 0;

@@ -86,26 +86,29 @@ EP4CE6E22C8 (Cyclone IV E, 6272 LEs). Pin assignments in `WillFA7.qsf`. Physical
 
 ## EEPROM Save Path (`lib_common/EEprom.vhd`)
 
-Clean-room rewrite (post-v097) preserving v097 behavior bit-for-bit while restructuring the code:
+Clean-room rewrite (post-v097), restructured around a hierarchical FSM and a read-before-write save scan (no shadow cache):
 
 - **Two parallel processes:** `TOP` (phase FSM) and `SPI_SUB` (shared 3-state SPI handshake `SPI_IDLE → SPI_RUNNING → SPI_RELEASE`). Top FSM picks an op via `spi_op` enum and pulses `spi_start`; sub-FSM drives the matching `TX_Start_*` and pulses `spi_done_p` once the bus is released. Eliminates the duplicated `wait_for_Master_I/II/III/V` boilerplate.
-- **18 named phases** (`PH_BOOT_CHECK` … `PH_NEXT_BYTE`) instead of 26 ad-hoc states. Each save step (WREN → WRITE → POLL → VERIFY → REVERIFY) maps to exactly one phase.
-- **All timings are generics** with v097 defaults: `INIT_DELAY_CYCLES` (2 s), `PRE_WRITE_CYCLES` (1 s), `GLITCH_CYCLES` (1 µs), `REVERIFY_CYCLES` (100 ms), `HOLD_CYCLES` (20 µs), `SCAN_SETTLE_CYCLES` (5), `MAX_RETRY` (2), `SPI_HZ` (100 kHz), `BLINK_DIV_CYCLES` (1 Hz blink).
+- **19 named phases** (`PH_BOOT_CHECK` … `PH_NEXT_BYTE`). Each save step (READ → COMPARE → WREN → WRITE → POLL → VERIFY → REVERIFY) maps to exactly one phase.
+- **All timings are generics:** `INIT_DELAY_CYCLES` (2 s), `PRE_WRITE_CYCLES` (1 s), `GLITCH_CYCLES` (1 µs), `REVERIFY_CYCLES` (100 ms), `HOLD_CYCLES` (1000 cycles ≈ 20 µs), `SCAN_SETTLE_CYCLES` (5), `MAX_RETRY` (2), `SPI_HZ` (100 kHz), `BLINK_DIV_CYCLES` (1 Hz blink).
 - **Opcodes as named constants:** `CMD_READ` x"03", `CMD_WRITE` x"02", `CMD_WREN` x"06", `CMD_RDSR` x"05", `SR_WIP_BIT` 0.
-- **Same 4 SPI_Master instances** (32/32/16/8 bit `Laenge`, 100 kHz) with combinatorial `o_SPI_*` mux on `TX_Start_*` — ensures the M95256/M95512 sees identical frames as v097.
+- **4 SPI_Master instances** (32/32/16/8 bit `Laenge`, 100 kHz) with combinatorial `o_SPI_*` mux on `TX_Start_*`.
 
-Reliability layers (preserved from v095/v096/v097):
+Read-before-write save scan (replaces shadow cache, frees ~256 LCs / 1 M9K block):
 
-- **Per-byte write verify:** after WIP=0, READ back the just-written byte and compare to `verify_byte`. Up to `MAX_RETRY` (=2) retries per byte; persistent mismatch latches `error_latched`.
-- **256-byte shadow cache:** populated during boot read, updated only after a successful (re-)verify. `PH_SCAN_COMPARE` writes only bytes where `shadow(addr) /= q_ram(addr)`. Idle saves emit zero SPI traffic.
-- **Delayed re-verify:** after first verify passes, wait `REVERIFY_CYCLES` (100 ms) and re-read. Only a second match commits the shadow update. The 100 ms also functions as a recovery gap between consecutive WRITEs — empirically required for marginal M95512 chips.
+- **Per address 0..0xFF:** `PH_SCAN_SETTLE` (5 cycles for R5101 port-B settle) → `PH_SCAN_READ` (SPI READ EEPROM byte) → `PH_SCAN_DECIDE` (compare RX vs `q_ram`). Mismatch → write path; match → `PH_NEXT_BYTE`.
+- **Source of truth is always the EEPROM itself** — no shadow drift, no init-synchronization edge cases.
+- **Per-byte write+verify:** WREN → WRITE → poll RDSR until WIP=0 → READ → compare to `verify_byte`. Up to `MAX_RETRY` (=2) retries; persistent mismatch latches `error_latched`.
+- **Delayed re-verify:** after first verify passes, wait `REVERIFY_CYCLES` (100 ms) and re-read. Only a second match advances to next byte. The 100 ms also functions as a recovery gap between consecutive WRITEs — empirically required for marginal M95512 chips.
+- **Bus traffic per save:** ~256 × 32-bit READs (~82 ms minimum) regardless of changes. EEPROM reads are non-destructive.
 
 LED feedback (`EEprom_error` → `LED_active` via top-level mux on `o_wr_in_progress`):
 
-- **Boot-Read + INIT_DELAY:** `o_wr_in_progress='0'`, `save_active='0'` → LED dark ("EEPROM busy at boot").
+- **Boot-Read + INIT_DELAY:** `o_wr_in_progress='0'`, no save in progress → LED dark.
 - **IDLE:** `o_wr_in_progress='1'` → LED follows display blanking (normal).
-- **During save (any of 11 save phases):** `o_wr_in_progress='0'`, `save_active='1'` → LED blinks 1 Hz ("save in progress, do not power off"). When blink stops, save is complete.
-- **Verify failure:** `error_latched='1'` keeps the blink alive while still in save phase (visible only during the failed save itself).
+- **Save scan with no writes** (all bytes already match): LED stays dark — `write_seen` never latches.
+- **Save scan with writes:** `write_seen` latches when entering `PH_WRITE_WREN`; LED blinks at 1 Hz until `PH_NEXT_BYTE → PH_IDLE` clears it. Indicates "save in progress, do not power off".
+- **Verify failure:** `error_latched='1'` keeps the blink alive past the save until the next successful save.
 
 CMOS region mirrored: 256 bytes. `selection` (game-select-derived) is the SPI high address byte; `address_eeprom` is the low byte. R5101 dual-port RAM port B output is asynchronous with registered address — `PH_SCAN_SETTLE` waits 5 cycles for margin.
 
