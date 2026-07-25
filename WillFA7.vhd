@@ -25,6 +25,8 @@
 -- v3.16 intermidiate with possible 'CONTACT' patch for special solenoid
 -- v3.17 eeprom write robustnes (new SD_card and eeprom.vhd with shadow ram, SPI Master consolidated )
 -- v3.18 switch matrix hardware debouncer (sw_debounce.vhd) against multiple switch triggers - per-switch, strobe-aware, incl. 2-FF sync
+-- v3.19 special solenoid trigger: debounce time switchable via option DIP4 (57uS -> 250uS), against neighbour cross-triggering (sol 20 fired sol 19)
+--       plus META_SPECIAL1..6 synchronizers moved from clk_50 to cpu_clk (target domain of spec_sol_trigger)
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -1037,7 +1039,7 @@ META_SPECIAL1: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(1),
 	o_Q => SPC_Sol_Trig_stable(1),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 
 SPECIAL1: entity work.spec_sol_trigger
 port map(
@@ -1045,13 +1047,14 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(1),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig(1)
 	); 
 META_SPECIAL2: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(2),
 	o_Q => SPC_Sol_Trig_stable(2),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 	
 SPECIAL2: entity work.spec_sol_trigger
 port map(
@@ -1059,13 +1062,14 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(2),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig(2)
 	); 
 META_SPECIAL3: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(3),
 	o_Q => SPC_Sol_Trig_stable(3),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 	
 SPECIAL3: entity work.spec_sol_trigger
 port map(
@@ -1073,13 +1077,14 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(3),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig(3)
 	); 
 META_SPECIAL4: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(4),
 	o_Q => SPC_Sol_Trig_stable(4),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 	
 SPECIAL4: entity work.spec_sol_trigger
 port map(
@@ -1087,13 +1092,14 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(4),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig(4)
 	); 
 META_SPECIAL5: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(5),
 	o_Q => SPC_Sol_Trig_stable(5),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 	
 SPECIAL5: entity work.spec_sol_trigger
 port map(
@@ -1101,13 +1107,14 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(5),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig(5)
 	); 	
 META_SPECIAL6: entity work.Cross_Slow_To_Fast_Clock
 port map(
    i_D => SPC_Sol_Trig(6),
 	o_Q => SPC_Sol_Trig_stable(6),
-   i_Fast_Clk => clk_50
+   i_Fast_Clk => cpu_clk
 	); 	
 -- For Game CONTACT no protection on spec. sol 6 as permanent
 -- special solenoïd is SOL22 (moving target relay) pin 9 on 2P12	
@@ -1119,6 +1126,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(6),
 	pulse_cfg => game_option(3 downto 2),
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v3.18 behaviour
 	solenoid => sp_solenoid_trig_6
 	); 
 	

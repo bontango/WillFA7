@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WillFA7 is a VHDL-based FPGA implementation that emulates Williams System 7 pinball machine MPU hardware on an Altera Cyclone IV EP4CE6E22C8 FPGA. Author: Ralf Thelen (bontango), website: www.lisy.dev. Current version: 3.18.
+WillFA7 is a VHDL-based FPGA implementation that emulates Williams System 7 pinball machine MPU hardware on an Altera Cyclone IV EP4CE6E22C8 FPGA. Author: Ralf Thelen (bontango), website: www.lisy.dev. Current version: 3.19.
 
 ## Build System
 
@@ -67,6 +67,18 @@ $5000-$7FFF  Game ROMs (6×2K from SD card)
 ### Boot Sequence
 
 4-phase: Phase 0 (reset/boot message) → Phase 1 (DIP/game select) → Phase 2 (SD card ROM + EEPROM load) → Phase 3 (game execution).
+
+### Option DIPs (`game_option(6 downto 1)`)
+
+DIP ON means `game_option(n) = '0'`, so consumers use `not game_option(n)`. Value is shown on the option display via `mybyte => "11" & game_option`.
+
+| Bit | DIP | Function |
+|-----|-----|----------|
+| 1 | DIP1 | NVRAM init (`opt_nvram_init_n`) |
+| 2,3 | DIP2/3 | Special solenoid pulse time (35/40/50/60 ms) |
+| 4 | DIP4 | Special solenoid debounce: ON = 250 µs, OFF = 57 µs (v3.18 behaviour) — see `docs/spec_sol_trigger_analysis.md` |
+| 5 | DIP5 | Switch matrix debounce (`sw_debounce.vhd`): ON = debounce, OFF = v3.17 passthrough |
+| 6 | DIP6 | Game CONTACT: special solenoid 6 permanent (bypasses `spec_sol_trigger`) |
 
 ## Third-Party Cores
 

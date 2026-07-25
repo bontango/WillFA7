@@ -9,36 +9,55 @@
 -- v 0.3 set explicit solenoid levels for each state
 -- v 0.4 added debouncer
 -- v 0.5 adjustable pulsetime
+-- v 0.6 switchable debounce time (long_debounce)
+--       The board input stage is 4,7K pullup + C to GND + 74HC4049 (no schmitt trigger).
+--       A transient coupled in from a neighbouring solenoid discharges that cap; the
+--       line then needs 1..2 tau (~50..100uS at 10nF) to recover, and during that time
+--       the HC4049 reports 'contact closed'. The fixed 50 cycle (~57uS) debounce sat
+--       right in that window, which made one special solenoid fire its neighbour in
+--       about half of the hits. SLOW gives ~5x margin over the RC recovery while
+--       staying well below the 1..5ms bounce time of a leaf contact.
 
 LIBRARY ieee;
 USE ieee.std_logic_1164.all;
 
-    entity spec_sol_trigger is        
+    entity spec_sol_trigger is
+        generic (
+            DEBOUNCE_FAST_CYCLES : integer := 50;  -- ~57uS, behaviour up to v3.18
+            DEBOUNCE_SLOW_CYCLES : integer := 220  -- ~250uS at 894KHz
+            );
         port(
-         clk_in  : in std_logic;               						
+         clk_in  : in std_logic;
 			i_Rst_L : in std_logic;     -- Game on
 			trigger : in std_logic;
 			pulse_cfg : in std_logic_vector(1 downto 0);
+			long_debounce : in std_logic; -- '1' -> SLOW (option dip 4 ON)
 			solenoid : out std_logic
             );
     end spec_sol_trigger;
     ---------------------------------------------------
     architecture Behavioral of spec_sol_trigger is
-	 	type STATE_T is ( Idle, Debounce, Pulse, Recycle ); 
-		signal state : STATE_T := Idle;     
+	 	type STATE_T is ( Idle, Debounce, Pulse, Recycle );
+		signal state : STATE_T := Idle;
 		signal counter : integer range 0 to 200000;
 		signal pulse_time : integer range 0 to 200000;
+		signal debounce_limit : integer range 0 to 200000;
 	begin
-	
+
 	-- pulse control
-	pulse_time <=    	
+	pulse_time <=
 		53700 when pulse_cfg = "11" else --60ms
 		45500 when pulse_cfg = "01" else --50ms
 		36400 when pulse_cfg = "10" else --40ms
 		31800; --35ms
 
-	
-	 spec_sol_trigger: process (clk_in, i_Rst_L, trigger)
+	-- debounce control
+	debounce_limit <=
+		DEBOUNCE_SLOW_CYCLES when long_debounce = '1' else
+		DEBOUNCE_FAST_CYCLES;
+
+
+	 spec_sol_trigger: process (clk_in)
     begin
 		if rising_edge(clk_in) then			
 			if i_Rst_L = '0' then --Reset condidition (reset_l)    
@@ -58,7 +77,7 @@ USE ieee.std_logic_1164.all;
 						solenoid <= '0';
 					   if ( trigger = '1') then
 							counter <= counter +1;						
-							if ( counter > 50) then					
+							if ( counter > debounce_limit) then
 								counter <= 0;
 								state <= Pulse; -- stable trigger
 							end if;
