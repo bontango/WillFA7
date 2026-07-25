@@ -23,13 +23,14 @@
 -- v3.14 solenoid 17 with peak filter as we have 9uS peaks each 2mS on sp_solenoid_mpu(1);
 -- v3.15 Quartus 22.1, claude debug session: timing corrected, mem_clk confirmed, BT28 (SYS3 settings) corrected
 -- v3.16 intermidiate with possible 'CONTACT' patch for special solenoid
--- v3.17 eeprom write robustnes (new SD_card and eeprom.vhd, SPI Master consolidated )
+-- v3.17 eeprom write robustnes (new SD_card and eeprom.vhd with shadow ram, SPI Master consolidated )
+-- v3.18 switch matrix hardware debouncer (sw_debounce.vhd) against multiple switch triggers - per-switch, strobe-aware, incl. 2-FF sync
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 	
-entity WillFA7 is
+entity WillFA7 is	
 	port(		
 	   -- the FPGA board
 		clk_50	: in std_logic; 	-- PIN17
@@ -151,6 +152,7 @@ signal pia2_dout	:	std_logic_vector(7 downto 0);
 signal pia2_irq_a	:	std_logic;
 signal pia2_irq_b	:	std_logic;
 signal pia2_cs		:	std_logic;
+signal sw_return_deb	:	std_logic_vector(7 downto 0); --debounced switch returns -> PIA2 pa_i
 -- pia3
 signal pia3_dout	:	std_logic_vector(7 downto 0);
 signal pia3_irq_a	:	std_logic;
@@ -271,7 +273,7 @@ signal is_sys3 : std_logic; -- '1' for System3/4 (game_select 0-8)
 -- SW version
 constant SW_MAIN : std_logic_vector(3 downto 0) := x"3";
 constant SW_SUB1 : std_logic_vector(3 downto 0) := x"1";
-constant SW_SUB2 : std_logic_vector(3 downto 0) := x"7";
+constant SW_SUB2 : std_logic_vector(3 downto 0) := x"8";
 
 begin
 
@@ -775,6 +777,26 @@ port map(
 	default_pb_level => '0'  -- output level when configured as input
 );
 
+-- Hardware debouncer for the switch matrix (sw_return)
+-- matrix-aware, per-switch charge integrator with hysteresis (digital RC), incl. 2-FF sync
+-- per-switch DEBOUNCE_MASK inside the module (game-specific: Alien Poker) leaves
+-- level/confirm-read switches (drop-target banks, outhole, eject holes), spinner and
+-- jets RAW; only momentary switches are debounced. See docs/switch_debounce_analysis.md.
+-- inline between the sw_return pins and PIA2 pa_i
+SWDEB: entity work.sw_debounce
+generic map(
+	INTEG_MAX     => 4,   -- state change ~8ms (2ms/scan); raise to 5 if hard hits double, lower to 3 if fast hits missed
+	SETTLE_CYCLES => 4
+)
+port map(
+	clk           => cpu_clk,
+	i_Rst_L       => reset_l,
+	enable        => not game_option(5),  -- option DIP5 ON (game_option(5)='0') -> debounce; OFF -> raw v3.17 passthrough
+	sw_strobe     => sw_strobe,        -- one-hot column select (buffer port, readable)
+	sw_return_raw => sw_return,        -- raw returns from the pins
+	sw_return_deb => sw_return_deb
+);
+
 -- PIA II driver board (3000) Switches
 --	 IRQA IRQ/'
 --	 IRQB IRQ/'
@@ -793,9 +815,9 @@ port map(
    addr => cpu_addr(1 downto 0),     
    data_in => cpu_dout,  
 	data_out => pia2_dout, 
-	irqa => pia2_irq_a,   
-	irqb => pia2_irq_b,    
-	pa_i => sw_return,
+	irqa => pia2_irq_a,
+	irqb => pia2_irq_b,
+	pa_i => sw_return_deb,
 	pa_o => open,
 	ca1 => '0',
 	ca2_i => '1',

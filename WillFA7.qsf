@@ -160,6 +160,7 @@ set_global_assignment -name VHDL_FILE lib_common/irq_generator.vhd
 set_global_assignment -name QIP_FILE lib_cyclone_IV/williams_pll.qip
 set_global_assignment -name VHDL_FILE lib_common/spec_sol_trigger.vhd
 set_global_assignment -name VHDL_FILE lib_common/detect_sw.vhd
+set_global_assignment -name VHDL_FILE lib_common/sw_debounce.vhd
 set_global_assignment -name VHDL_FILE lib_common/byte_to_decimal.vhd
 set_global_assignment -name VHDL_FILE lib_common/boot_message.vhd
 set_global_assignment -name VHDL_FILE lib_common/EEprom.vhd
