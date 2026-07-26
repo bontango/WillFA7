@@ -28,6 +28,9 @@
 -- v3.19 special solenoid trigger: debounce time switchable via option DIP4 (57uS -> 250uS), against neighbour cross-triggering (sol 20 fired sol 19)
 --       plus META_SPECIAL1..6 synchronizers moved from clk_50 to cpu_clk (target domain of spec_sol_trigger)
 -- v3.20 switch matrix debounce masks selected by game number (sw_debounce, MASK_ROM)
+--       plus FIX: LED_active ist die Blanking-Leitung (IC13 /OE + /RESET der 273er) und wird
+--       wieder ausschliesslich von 'blanking' getrieben. Behebt den kurzen Blanking-Einbruch
+--       ~6s nach Boot und bei jedem EEprom-Save, der ab v3.17 auftrat.
 --       (Nebenbei: die Versionskonstante war bis einschliesslich 3.19 auf 3.18 stehengeblieben.)
 
 library ieee;
@@ -209,7 +212,6 @@ signal gen_irq		:	std_logic;
 signal blanking	:	std_logic:='1';
 signal eeprom_trigger	:	std_logic:='0';
 signal eeprom_wr_in_progress	:	std_logic:='1';
-signal eeprom_error_sig		:	std_logic:='0';
 
 -- SD card
 signal address_sd_card	:  std_logic_vector(13 downto 0);
@@ -288,9 +290,13 @@ begin
 
 LED_status <= not boot_phase(0); -- for display blanking
 LED_sd_Error <=  SDcard_error;
--- LED_active shows EEprom_error (1 Hz blink) while EEprom is actively writing/verifying,
--- otherwise the normal display blanking signal.
-LED_active <= eeprom_error_sig when eeprom_wr_in_progress = '0' else blanking;
+-- ACHTUNG: LED_active (PIN_3) ist KEINE reine LED, sondern die Blanking-Leitung:
+--   PIN_3 -> IC13 74HCT240 /OE (switch strobes)
+--         -> T9 -> blanking_n -> /RESET IC3,4,5 (Solenoid-Latches) und IC6,7 (Lamp-Latches)
+-- '1' loescht alle Solenoid- und Lamp-Latches und sperrt die Switch-Strobes.
+-- Dieser Pin darf ausschliesslich 'blanking' fuehren - nie fuer Status-/Fehleranzeigen
+-- umwidmen (Regression v3.17..v3.19, siehe docs/blanking_led_active.md).
+LED_active <= blanking;
 
 opt_nvram_init_n <= game_option(1); -- 0 if option Dip1 is set
 
@@ -423,7 +429,9 @@ port map(
 		-- signal when finished
 	done	=> boot_phase(3), -- set to '1' when first read of eeprom and write to cmos is done
 	o_wr_in_progress => eeprom_wr_in_progress,
-	EEprom_error => eeprom_error_sig
+	-- nicht beschaltet: die 1-Hz-Blinkanzeige lag frueher auf LED_active,
+	-- das ist aber die Blanking-Leitung (siehe docs/blanking_led_active.md)
+	EEprom_error => open
 	);
 -----------------------------------------------
 -- phase 3: activated by eeprom after first read/write

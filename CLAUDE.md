@@ -95,6 +95,7 @@ EP4CE6E22C8 (Cyclone IV E, 6272 LEs). Pin assignments in `WillFA7.qsf`. Physical
 - Signal naming follows Williams hardware conventions (e.g., `sw_strobe`, `sw_return`, `sol_1_8_sel`)
 - Active-low signals: reset (`reset_sw`), chip selects (`CS_SDcard`, `CS_EEprom`)
 - Version history maintained in `Archive/` directory
+- **The three `LED_*` outputs are not just LEDs.** `LED_active` (PIN_3) is the driver-board blanking line, `LED_status` (PIN_10) is the display blanking. Never repurpose them for status or error indication — see `docs/blanking_led_active.md`. Only `LED_SD_Error` (PIN_1) is a plain LED.
 
 ## EEPROM Save Path (`lib_common/EEprom.vhd`)
 
@@ -114,13 +115,9 @@ Read-before-write save scan (replaces shadow cache, frees ~256 LCs / 1 M9K block
 - **Delayed re-verify:** after first verify passes, wait `REVERIFY_CYCLES` (100 ms) and re-read. Only a second match advances to next byte. The 100 ms also functions as a recovery gap between consecutive WRITEs — empirically required for marginal M95512 chips.
 - **Bus traffic per save:** ~256 × 32-bit READs (~82 ms minimum) regardless of changes. EEPROM reads are non-destructive.
 
-LED feedback (`EEprom_error` → `LED_active` via top-level mux on `o_wr_in_progress`):
+LED feedback: **none.** `EEprom_error` is left `open` at the top level and `o_wr_in_progress` is unused.
 
-- **Boot-Read + INIT_DELAY:** `o_wr_in_progress='0'`, no save in progress → LED dark.
-- **IDLE:** `o_wr_in_progress='1'` → LED follows display blanking (normal).
-- **Save scan with no writes** (all bytes already match): LED stays dark — `write_seen` never latches.
-- **Save scan with writes:** `write_seen` latches when entering `PH_WRITE_WREN`; LED blinks at 1 Hz until `PH_NEXT_BYTE → PH_IDLE` clears it. Indicates "save in progress, do not power off".
-- **Verify failure:** `error_latched='1'` keeps the blink alive past the save until the next successful save.
+The module still contains the `write_seen` / `error_latched` / `blink_q` logic, but it must **not** be routed to `LED_active`. That pin is the driver-board blanking line (74HCT240 `/OE` for the switch strobes plus `/RESET` of the five 74HCT273 solenoid/lamp latches) — driving it from anything other than `blanking` blanks the machine. This was the v3.17–v3.19 regression; see `docs/blanking_led_active.md`. `LED_status` is the display blanking and is equally off-limits.
 
 CMOS region mirrored: 256 bytes. `selection` (game-select-derived) is the SPI high address byte; `address_eeprom` is the low byte. R5101 dual-port RAM port B output is asynchronous with registered address — `PH_SCAN_SETTLE` waits 5 cycles for margin.
 
