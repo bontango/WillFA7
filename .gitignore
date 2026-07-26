@@ -34,3 +34,11 @@ greybox_tmp/
 output_files/output_files/
 archive/
 ROM/
+roms/
+
+# Gescannte Handbuchseiten (Switchmatrix, Playfield) - nur lokal, nicht ins
+# oeffentliche Repo. Die Ableitungen daraus stehen als Text in docs/switch_matrix/.
+docs/*.png
+docs/*.jpg
+docs/*.jpeg
+Thumbs.db

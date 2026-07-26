@@ -60,6 +60,9 @@ bleibt:
   Tilt, Ball Roll Tilt, Credit Button, drei Muenzschalter, Slam Tilt). Betrifft nur
   Spaltenbyte 1 der Maske (`00` -> `7F`); die Playfield-Schalter 09-40 waren korrekt.
 
+Die gescannten Handbuchblaetter selbst liegen nur lokal in `docs/` und sind per `.gitignore`
+vom Repository ausgenommen; im Repo steht ausschliesslich die daraus abgeleitete Textform.
+
 Aufbereitete Matrizen aller 32 Geraete im MediaWiki-Format: `switch_matrix/`.
 
 Die ROM-Gegenprobe nutzt die Dispatch-Tabelle der System-6-Codebasis (`$60F1`,
