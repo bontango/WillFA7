@@ -27,6 +27,8 @@
 -- v3.18 switch matrix hardware debouncer (sw_debounce.vhd) against multiple switch triggers - per-switch, strobe-aware, incl. 2-FF sync
 -- v3.19 special solenoid trigger: debounce time switchable via option DIP4 (57uS -> 250uS), against neighbour cross-triggering (sol 20 fired sol 19)
 --       plus META_SPECIAL1..6 synchronizers moved from clk_50 to cpu_clk (target domain of spec_sol_trigger)
+-- v3.20 switch matrix debounce masks selected by game number (sw_debounce, MASK_ROM)
+--       (Nebenbei: die Versionskonstante war bis einschliesslich 3.19 auf 3.18 stehengeblieben.)
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -274,8 +276,8 @@ signal is_sys3 : std_logic; -- '1' for System3/4 (game_select 0-8)
 
 -- SW version
 constant SW_MAIN : std_logic_vector(3 downto 0) := x"3";
-constant SW_SUB1 : std_logic_vector(3 downto 0) := x"1";
-constant SW_SUB2 : std_logic_vector(3 downto 0) := x"8";
+constant SW_SUB1 : std_logic_vector(3 downto 0) := x"2";
+constant SW_SUB2 : std_logic_vector(3 downto 0) := x"0";
 
 begin
 
@@ -781,9 +783,11 @@ port map(
 
 -- Hardware debouncer for the switch matrix (sw_return)
 -- matrix-aware, per-switch charge integrator with hysteresis (digital RC), incl. 2-FF sync
--- per-switch DEBOUNCE_MASK inside the module (game-specific: Alien Poker) leaves
--- level/confirm-read switches (drop-target banks, outhole, eject holes), spinner and
--- jets RAW; only momentary switches are debounced. See docs/switch_debounce_analysis.md.
+-- The per-switch mask inside the module leaves level/confirm-read switches (drop-target
+-- banks, outhole/trough, eject holes, kickers, locks, ramps), spinners and jets RAW;
+-- only momentary switches (stand-ups, rollovers, lanes, cabinet) are debounced.
+-- Since v3.20 the mask is selected by game number, so every supported game gets its own
+-- table. See docs/switch_debounce_analysis.md and docs/switch_masks.md.
 -- inline between the sw_return pins and PIA2 pa_i
 SWDEB: entity work.sw_debounce
 generic map(
@@ -794,6 +798,7 @@ port map(
 	clk           => cpu_clk,
 	i_Rst_L       => reset_l,
 	enable        => not game_option(5),  -- option DIP5 ON (game_option(5)='0') -> debounce; OFF -> raw v3.17 passthrough
+	game          => not game_select,  -- game number 0..31; DIPs are active low, same as 'selection' at SD_Card/EEprom
 	sw_strobe     => sw_strobe,        -- one-hot column select (buffer port, readable)
 	sw_return_raw => sw_return,        -- raw returns from the pins
 	sw_return_deb => sw_return_deb

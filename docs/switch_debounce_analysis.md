@@ -224,6 +224,47 @@ Die Drop-Target- (`$63DA`) und Outhole-Handler (`$6473`) **pollen NICHT** die Sw
 
 Die aktuelle Alien-Poker-Maske deckt sich sauber mit den ROM-Klassen: RAW = Drop-Bank (`$63DA`), Spinner+Jets (`$63CD`), Outhole (`$6473`), plus die Ball-Hold-&-Kick-Teilmenge von `$7230` (Eject-Holes 15/22/29, Left Kicker 13). Debounced = Joker-Targets (`$63AA`), Stand-ups/Rollovers/Specials/Lane-Change (Rest von `$7230`), Kabinett.
 
+## 8. Übertragung auf alle 32 Spiele (v3.20)
+
+Die obige Analyse gilt für *Alien Poker*. Für den Rollout auf die übrigen 31 Spiele wurden
+alle ROMs verglichen — sie zerfallen in **vier Codebasen**, erkennbar an der Scan-Routine:
+
+| Basis | Scan-Routine | Dispatch | Spiele |
+|---|---|---|---|
+| SYS3/4 | `LDAA $3000` @ `$70D5` | `$609C`, 2 B/Switch, doppelt indirekt | 0–6 |
+| SYS6 | `LDAA $3000` @ `$7EBD` | `$60F1`, 4 B/Switch | 7, 9–17 |
+| SYS6-Var | `$7EA5` | `$60DF` | 8 (Stellar Wars) |
+| SYS7 | `EORA $3000` @ `$70E3` | Bytecode-Interpreter | 18–31 |
+
+**Zentraler Befund:** Alle vier benutzen denselben schwachen 2-Read-Filter
+(`stabil = roh AND roh_vorher`) bei ~2 ms Scan-Takt. Bei SYS7 lautet die Stelle
+`70E7: ANDA $69,X` (CUR-Tabelle `$69..$70`, DEB-Tabellen `$71..$80`), zusätzlich gibt es
+dort eine per-Spalte Invert-Maske `$61..$68` für Ruhekontakte. **Die Debounce-Problematik
+und damit der Lösungsansatz sind über alle 32 Spiele identisch** — nur die
+Switch-Zuordnung unterscheidet sich.
+
+**Verifizierte Index-Konvention** (Switch-Nummer-Berechnung `$7EDD–$7EEA`):
+`Switch-Nr = 8 × Strobe-Bit + Return-Bit + 1`, Dispatch-Eintrag bei `$60F1 + N×4`
+(nicht `(N-1)×4`). Deckt sich mit der Maskenindizierung in `sw_debounce.vhd`.
+
+**Grenze der reinen ROM-Analyse:** Ein RAW-Indikator liess sich mechanisch nur für den
+generischen Handler `$7230` gewinnen (Bit 3 des Flag-Bytes an `$61xx` = „diesem Switch ist
+eine Solenoid zugeordnet"; trifft bei Alien Poker exakt die Eject-Löcher 15/22/29). Die
+spielspezifischen Handler sind **nicht** so klassifizierbar: der Jets-/Spinner-Handler
+`$63CD` feuert gar keine Spule (reines Scoring), und `$6420` führt zur *Lampen*-Routine
+`$780E`, nicht zur Coil-Fire `$71C9`/`$71CB`. Eine Graph-Traversierung liefert
+Falsch-Positive, weil über die gemeinsame Score-/Sound-Kette (`$79D9: JSR $71CB`) jeder
+Handler die Coil-Routine erreicht.
+
+**Konsequenz — zwei Quellen statt einer:** Die Klassifikation stützt sich primär auf die
+Switch-**Namen** (Bauart ist am Namen ablesbar: Outhole, Drop Target, Eject, Kicker,
+Spinner, Jet …), die ROM-**Handler-Gruppen** dienen als Gegenprobe und schliessen die
+Lücken der Namensquelle. Details, Regelwerk und die 32 Masken: **`switch_masks.md`**.
+
+Die Regel reproduziert die hardwarebestätigte Alien-Poker-Maske **bitgleich** und trifft
+bei Black Knight exakt die Switch-Definitionen des PinMAME-Simulators — zwei unabhängige
+Validierungen.
+
 ## Anhang: Vektoren & Werkzeug
 
 - RESET `$7000` (`SEI/LDS #$7FDB…`), IRQ `$60EE`=`JMP $6711`, NMI `$7BE0`, SWI `$7000`.
