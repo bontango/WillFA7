@@ -23,10 +23,10 @@ Maskenbit `n` von Spaltenbyte `c` gilt also fuer Switch `8*c + n + 1`.
 
 Vorrang: **STANDUP > DROP > uebrige RAW-Muster > uebrige DEB-Muster.**
 Ein "... Drop Target Standup" ist der separate Standup-Kontakt an einer Drop-Bank und
-damit ein reiner Momentschalter, nicht das versenkbare Target selbst. Das betrifft 23
+damit ein reiner Momentschalter, nicht das versenkbare Target selbst. Das betrifft 24
 Switches in 10 Spielen (u. a. Gorgar sw22/sw40, Pokerino sw22/sw45/sw46, Phoenix
-sw22/sw24, Laser Ball sw39/sw48) und deckt sich mit Alien Poker sw41 "5 BANK STANDUP",
-der hardwarebestaetigt entprellt wird.
+sw22/sw24, Laser Ball sw39/sw48, Stellar Wars sw20/sw35) und deckt sich mit Alien Poker
+sw41 "5 BANK STANDUP", der hardwarebestaetigt entprellt wird.
 
 **RAW (Rohsignal)** - Switches, bei denen zusaetzliche Oeffnungs-Latenz das Spiel bricht
 oder die zu schnell wiederholen:
@@ -46,22 +46,38 @@ PinMAME-Simulators (`src/wpc/sims/s7/full/bk.c`) trifft.
 | Tag | Bedeutung |
 |---|---|
 | `[HW ]` | auf echter Hardware bestaetigt (nur Alien Poker) |
-| `[ROM]` | Switch-Namen **und** Gegenprobe gegen die Handler-Gruppen des Spiel-ROMs |
+| `[HB+]` | Switch-Namen aus einem Original-Handbuchblatt **und** ROM-Gegenprobe |
+| `[ROM]` | Switch-Namen aus der Datenbank **und** Gegenprobe gegen die Handler-Gruppen des Spiel-ROMs |
 | `[HB ]` | Switch-Namen aus einem Original-Handbuchblatt, keine ROM-Gegenprobe |
 | `[MTX]` | nur Switch-Namen aus der Datenbank, keine ROM-Gegenprobe |
 
-Die Switch-Namen stammen aus der Pinitech-Switch-Matrix-Datenbank
-(`pinitech.com/switch_database.php`). Zwei Spiele kommen aus Original-Handbuchblaettern
-und haben damit die bessere Quelle, auch wenn ihr Tag mangels ROM-Gegenprobe `[MTX]`
-bleibt:
-- **Laser Ball** (`docs/Laser_Ball_Switchmatrix.jpg`) - in der Datenbank nicht enthalten.
-- **Contact** (`docs/Contact_switchmatrix.png`) - die Datenbank fuehrt dort Spalte 1
-  faelschlich komplett als "not used". Tatsaechlich ist sie reguler belegt (Plumb Bob
+Die Switch-Namen stammen ueberwiegend aus der Pinitech-Switch-Matrix-Datenbank
+(`pinitech.com/switch_database.php`). Elf Spiele kommen aus Original-Handbuchblaettern
+und haben damit die bessere Quelle. Wo beide auseinanderlaufen, gilt das Handbuchblatt;
+das war bisher dreimal der Fall:
+
+- **Contact** (`docs/Contact_switchmatrix.png`) - die Datenbank fuehrt Spalte 1
+  faelschlich komplett als "not used". Tatsaechlich ist sie regulaer belegt (Plumb Bob
   Tilt, Ball Roll Tilt, Credit Button, drei Muenzschalter, Slam Tilt). Betrifft nur
   Spaltenbyte 1 der Maske (`00` -> `7F`); die Playfield-Schalter 09-40 waren korrekt.
+- **Phoenix** (`docs/Phoenix_switchmatrix.png`) - die Datenbank fuehrt sw27 und sw43 als
+  "not used". Tatsaechlich sind beide Drop Targets; jede der beiden Banks hat vier
+  Targets, nicht drei. Das ROM bestaetigt es: 25/26/27/28 und 41/42/43/44 teilen sich
+  alle acht den Handler `$619E`. **Ohne Maskenaenderung** - "not used" und "Drop Target"
+  fuehren beide auf `0` (roh).
+- **Stellar Wars** (`docs/Stellar_Wars_switchmatrix.png`) - die Datenbank fuehrt sw34
+  *und* sw35 als "Series". Laut Handbuch ist sw34 die Series und sw35 der **Standup**
+  der rechten 3-Bank; beide 3-Banks sind damit symmetrisch (16/17/18 + 19 Series +
+  20 Standup links, 31/32/33 + 34 Series + 35 Standup rechts). **Maskenaenderung:**
+  Spaltenbyte 5 `28` -> `2C`, sw35 wird nach der STANDUP-Regel entprellt.
 
-Die gescannten Handbuchblaetter selbst liegen nur lokal in `docs/` und sind per `.gitignore`
-vom Repository ausgenommen; im Repo steht ausschliesslich die daraus abgeleitete Textform.
+**Laser Ball** (`docs/Laser_Ball_Switchmatrix.jpg`) ist in der Datenbank gar nicht
+enthalten und stammt ausschliesslich aus dem Handbuchblatt.
+
+Gescannt vorliegend sind Hot Tip, Lucky Seven, World Cup, Contact, Disco Fever,
+Pokerino, Phoenix, Flash, Stellar Wars, Laser Ball und Scorpion. Die Scans selbst liegen
+nur lokal in `docs/` und sind per `.gitignore` vom Repository ausgenommen; im Repo steht
+ausschliesslich die daraus abgeleitete Textform.
 
 Aufbereitete Matrizen aller 32 Geraete im MediaWiki-Format: `switch_matrix/`.
 
@@ -98,10 +114,10 @@ Handler-Gruppen-Gegenprobe moeglich war (Tag `[MTX]`).
 | 2 | World Cup | SYS3 | `[HB ]` | `7F 4E F7 FE 0F 00 00 00` | 9, 13, 14, 16, 20, 25, 37, 38 |
 | 3 | Contact | SYS3 | `[HB ]` | `7F FD F7 81 F8 00 00 00` | 10, 20, 26, 27, 28, 29, 30, 31, 33, 34, 35 |
 | 4 | Disco Fever | SYS3 | `[HB ]` | `7F FB 86 2F 86 00 00 00` | 11, 17, 20, 21, 22, 23, 29, 33, 38, 39 |
-| 5 | Pokerino | SYS4 | `[MTX]` | `FF FD E0 C4 10 3D 00 00` | 10, 17, 18, 19, 20, 21, 25, 26, 28, 29, 30, 33, 34, 35, 36, 38, 39, 40, 42 |
-| 6 | Phoenix | SYS4 | `[MTX]` | `FF 3F FC C0 E0 C0 00 00` | 15, 16, 17, 18, 25, 26, 28, 29, 30, 33, 35, 37, 41, 42, 44, 45, 46 |
-| 7 | Flash | SYS4 | `[ROM]` | `FF FF F0 03 E0 7C 00 00` | 17, 18, 19, 20, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41, 42, 48 |
-| 8 | Stellar Wars | SYS4 | `[ROM]` | `FF 0E C8 3E 28 87 01 00` | 9, 13, 14, 16, 17, 18, 19, 21, 22, 25, 31, 32, 33, 34, 35, 37, 40, 44, 45, 46, 47, 50, 51, 52, 53, 54 |
+| 5 | Pokerino | SYS4 | `[HB+]` | `FF FD E0 C4 10 3D 00 00` | 10, 17, 18, 19, 20, 21, 25, 26, 28, 29, 30, 33, 34, 35, 36, 38, 39, 40, 42 |
+| 6 | Phoenix | SYS4 | `[HB+]` | `FF 3F FC C0 E0 C0 00 00` | 15, 16, 17, 18, 25, 26, 27, 28, 29, 30, 33, 35, 37, 41, 42, 43, 44, 45, 46 |
+| 7 | Flash | SYS4 | `[HB+]` | `FF FF F0 03 E0 7C 00 00` | 17, 18, 19, 20, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41, 42, 48 |
+| 8 | Stellar Wars | SYS4 | `[HB+]` | `FF 0E C8 3E 2C 87 01 00` | 9, 13, 14, 16, 17, 18, 19, 21, 22, 25, 31, 32, 33, 34, 37, 40, 44, 45, 46, 47, 50, 51, 52, 53, 54 |
 | 9 | Tri Zone | SYS6 | `[ROM]` | `FF 0E 77 9C 02 00 00 00` | 9, 13, 14, 15, 16, 20, 24, 25, 26, 30, 31, 33, 35 |
 | 10 | Time Warp | SYS6 | `[ROM]` | `FF BE 03 C0 F0 0C 00 00` | 9, 15, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 33, 34, 35, 36, 41, 42 |
 | 11 | Gorgar | SYS6 | `[ROM]` | `FF B6 A1 DF 87 00 00 00` | 9, 12, 15, 18, 19, 20, 21, 23, 30, 36, 37, 38, 39, 41, 42, 43, 44 |

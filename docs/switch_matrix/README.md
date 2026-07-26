@@ -14,10 +14,10 @@ und am Original-Handbuchblatt von Laser Ball.
 | 2 | World Cup | 1978 | System 3 | 37 | [02_World_Cup.md](02_World_Cup.md) | Handbuch |
 | 3 | Contact | 1978 | System 3 | 39 | [03_Contact.md](03_Contact.md) | Handbuch |
 | 4 | Disco Fever | 1978 | System 3 | 35 | [04_Disco_Fever.md](04_Disco_Fever.md) | Handbuch |
-| 5 | Pokerino | 1978 | System 4 | 46 | [05_Pokerino.md](05_Pokerino.md) | Pinitech |
-| 6 | Phoenix | 1978 | System 4 | 44 | [06_Phoenix.md](06_Phoenix.md) | Pinitech |
-| 7 | Flash | 1979 | System 4 | 48 | [07_Flash.md](07_Flash.md) | Pinitech |
-| 8 | Stellar Wars | 1979 | System 4 | 52 | [08_Stellar_Wars.md](08_Stellar_Wars.md) | Pinitech |
+| 5 | Pokerino | 1978 | System 4 | 46 | [05_Pokerino.md](05_Pokerino.md) | Handbuch |
+| 6 | Phoenix | 1978 | System 4 | 46 | [06_Phoenix.md](06_Phoenix.md) | Handbuch |
+| 7 | Flash | 1979 | System 4 | 48 | [07_Flash.md](07_Flash.md) | Handbuch |
+| 8 | Stellar Wars | 1979 | System 4 | 52 | [08_Stellar_Wars.md](08_Stellar_Wars.md) | Handbuch |
 | 9 | Tri Zone | 1979 | System 6 | 35 | [09_Tri_Zone.md](09_Tri_Zone.md) | Pinitech |
 | 10 | Time Warp | 1979 | System 6 | 44 | [10_Time_Warp.md](10_Time_Warp.md) | Pinitech |
 | 11 | Gorgar | 1979 | System 6 | 44 | [11_Gorgar.md](11_Gorgar.md) | Pinitech |
@@ -44,8 +44,18 @@ und am Original-Handbuchblatt von Laser Ball.
 
 ## Hinweis zur Quelle
 
-31 der 32 Matrizen stammen aus der Pinitech Switch Matrix Database
-(https://www.pinitech.com/switch_database.php); Laser Ball aus dem
-Original-Handbuchblatt. Die Schalterbelegung selbst ist Herstellerangabe aus den
-Williams-Handbuechern. Beim Einpflegen in pinwiki.com sollte die jeweilige Quelle
-mit angegeben werden.
+Elf Matrizen (Hot Tip, Lucky Seven, World Cup, Contact, Disco Fever, Pokerino,
+Phoenix, Flash, Stellar Wars, Laser Ball, Scorpion) stammen aus den
+Original-Handbuchblaettern, die uebrigen 21 aus der Pinitech Switch Matrix Database
+(https://www.pinitech.com/switch_database.php). Die Schalterbelegung selbst ist in
+beiden Faellen Herstellerangabe aus den Williams-Handbuechern. Beim Einpflegen in
+pinwiki.com sollte die jeweilige Quelle mit angegeben werden.
+
+Wo Handbuchblatt und Datenbank auseinanderlaufen, gilt das Handbuchblatt. Bisher
+betrifft das drei Geraete:
+
+| Spiel | Datenbank | Handbuchblatt |
+|---|---|---|
+| Contact | Column 1 komplett "not used" | Column 1 regulaer belegt (Tilts, Muenzen, Credit, Slam) |
+| Phoenix | sw27 und sw43 "not used" | beides Drop Targets - die Banks haben je vier, nicht drei |
+| Stellar Wars | sw34 und sw35 beide "Series" | sw34 Series, sw35 **Standup** der rechten 3-Bank |

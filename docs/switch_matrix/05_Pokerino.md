@@ -20,20 +20,27 @@ Williams ''Pokerino'' (1978), System 4. 46 belegte Schalter, Matrix 6 x 8.
 | 04 Right Coin Switch || 12 Spade Ace Star Rollover || 20 Spade Queen Drop Target || 28 Right Kicker || 36 Spinner || 44 Outer Flipper
 |-
 ! Return 5<br />WHT-GRN
-| 05 Center Coin Switch || 13 Heart Ace Star Rollover || 21 Queen Drop Targets, Series || 29 Outhole || 37 Upper Left Standup || 45 Left Jack Drop Target Standup
+| 05 Center Coin Switch || 13 Heart Ace Star Rollover || 21 Queen Drop Target Series || 29 Outhole || 37 Upper Left Standup || 45 Left Jack Drop Target Standup
 |-
 ! Return 6<br />WHT-BLU
 | 06 Left Coin Switch || 14 Club Ace Star Rollover || 22 Queen Drop Target Standup || 30 Left Kicker || 38 Top Jet Bumper || 46 Right Jack Drop Target Standup
 |-
 ! Return 7<br />WHT-VIO
-| 07 Slam Tilt || 15 Diamond Ace Star Rollover || 23 Right Center Standup || 31 Left Special Rollover || 39 Left Jet Bu Mper || 47 Not Used
+| 07 Slam Tilt || 15 Diamond Ace Star Rollover || 23 Right Center Standup || 31 Left Special Rollover || 39 Left Jet Bumper || 47 Not Used
 |-
 ! Return 8<br />WHT-GRY
 | 08 High Score Reset || 16 Top Right Lane Star Rollover || 24 Playfield Tilt || 32 Bottom Left Standup || 40 Bottom Jet Bumper || 48 Not Used
 |}
 
+Columns 7 und 8 sind unbelegt (Switches 49-64).
+
 === Quelle ===
 
-Schalterbelegung: Pinitech Switch Matrix Database, https://www.pinitech.com/switch_database.php
+Schalterbelegung: Original-Handbuchblatt ''Pokerino'', Figure 9 "POKERINO Switch Matrix".
+Gegengeprueft an der Dispatch-Tabelle des Spiel-ROMs ($609C, 2 Bytes/Switch): die vier
+Queen-Drop-Targets 17-20 sowie die Jack-Drop-Targets 25/26/33/34 teilen sich Handler
+$617E, die fuenf Standups 23/32/37/45/46 den Handler $6188, die beiden Kicker 28/30
+den Handler $61B6, die drei Jet Bumper 38/39/40 den Handler $61FC - jede Gruppe
+einheitlich.
 
 Kabelfarben: bei Williams System 3-7 einheitlich; belegt durch die Original-Handbuchblaetter von ''Contact'' (System 3, 1978, alle acht Spalten und Zeilen) und ''Laser Ball'' (System 6, 1979, Spalten 2-8), die identisch sind.

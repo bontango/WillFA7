@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WillFA7 is a VHDL-based FPGA implementation that emulates Williams System 7 pinball machine MPU hardware on an Altera Cyclone IV EP4CE6E22C8 FPGA. Author: Ralf Thelen (bontango), website: www.lisy.dev. Current version: 3.19.
+WillFA7 is a VHDL-based FPGA implementation that emulates Williams System 7 pinball machine MPU hardware on an Altera Cyclone IV EP4CE6E22C8 FPGA. Author: Ralf Thelen (bontango), website: www.lisy.dev. Current version: 3.20.
 
 ## Build System
 
@@ -41,6 +41,7 @@ quartus_sh --flow compile WillFA7
 | read_the_dips | `read_the_dips.vhd` | DIP switch reader for game selection |
 | flipflops | `flipflops.vhd` | Flipper solenoid control |
 | spec_sol_trigger | `spec_sol_trigger.vhd` | Special solenoid trigger with debouncing |
+| sw_debounce | `sw_debounce.vhd` | Switch matrix hardware debouncer, per-switch mask from `MASK_ROM` |
 
 ### Clock Domains
 
@@ -77,8 +78,34 @@ DIP ON means `game_option(n) = '0'`, so consumers use `not game_option(n)`. Valu
 | 1 | DIP1 | NVRAM init (`opt_nvram_init_n`) |
 | 2,3 | DIP2/3 | Special solenoid pulse time (35/40/50/60 ms) |
 | 4 | DIP4 | Special solenoid debounce: ON = 250 µs, OFF = 57 µs (v3.18 behaviour) — see `docs/spec_sol_trigger_analysis.md` |
-| 5 | DIP5 | Switch matrix debounce (`sw_debounce.vhd`): ON = debounce, OFF = v3.17 passthrough |
+| 5 | DIP5 | Switch matrix debounce (`sw_debounce.vhd`): ON = debounce, OFF = v3.17 passthrough — the global fallback if a game misbehaves |
 | 6 | DIP6 | Game CONTACT: special solenoid 6 permanent (bypasses `spec_sol_trigger`) |
+
+## Switch Debounce Mask (`lib_common/sw_debounce.vhd`, v3.20)
+
+The module sits inline between the `sw_return` pins and PIA2 and debounces each of the
+8×8 switches individually. Debouncing is **not** applied globally: it adds open-side
+latency, which is fatal for "level" switches whose state the ROM reads back after firing
+a coil (drop-target banks, outhole, eject holes) — the ROM sees "still down / ball still
+there" and re-fires. A per-switch mask therefore selects debounced vs. raw pin.
+
+- `MASK_ROM` holds **32 games × 8 column bytes** (2048 bit), addressed by the game number
+  (`not game_select`, same numbering as the SD card slot and the EEPROM page). Quartus
+  infers a single M9K block for it — 0 LEs. A free-running refresh loop copies the active
+  game's 8 bytes into `cur_mask`, so the read path stays combinational.
+- Bit *n* of column byte *c* covers switch `8*c + n + 1`. **`1` = debounce, `0` = raw.**
+- The Alien Poker row is the regression anchor: byte-identical to the v3.18/v3.19 mask
+  that passed on real hardware.
+- **The error direction is asymmetric.** A momentary switch left raw merely keeps v3.17
+  behaviour (harmless); a level switch wrongly debounced breaks its confirm-read. When in
+  doubt, leave a bit at `0`.
+- On a report of a misbehaving game: **DIP5 OFF** first (global v3.17 fallback), then clear
+  that switch's bit in `MASK_ROM`.
+
+Derivation, per-game masks and confidence tags: `docs/switch_masks.md`. Per-game matrices
+in MediaWiki format: `docs/switch_matrix/`. Background on why global filters fail:
+`docs/switch_debounce_analysis.md`. Only Alien Poker is hardware-verified; the other 31
+masks are derived from manual sheets, the Pinitech database and ROM handler groups.
 
 ## Third-Party Cores
 

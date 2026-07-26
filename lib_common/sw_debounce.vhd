@@ -70,7 +70,8 @@
 --   that number; a free-running refresh loop copies the active game's 8 column
 --   bytes into cur_mask, so the read path stays combinational.
 --   Derivation of the table (see docs/switch_masks.md):
---     - switch names from the Pinitech switch-matrix database, classified by
+--     - switch names from the original Williams manual sheets where a scan
+--       exists (11 games), otherwise from the Pinitech database, classified by
 --       type (outhole/trough/drop target/eject/kicker/spinner/jet/lock/ramp ->
 --       raw; standup/rollover/lane/cabinet -> debounced),
 --     - cross-checked against the per-switch handler groups in each game ROM
@@ -140,8 +141,9 @@ architecture Behavioral of sw_debounce is
     -- '1' = debounce this switch, '0' = pass the raw pin through.
     -- Read is registered so Quartus infers a single M9K block (2048 bits)
     -- instead of ~300 LEs of multiplexer logic.
-    -- Confidence tags: [HW ] verified on real hardware, [ROM] switch names plus
-    -- ROM handler-group cross-check, [MTX] switch names only, [---] no data.
+    -- Confidence tags: [HW ] verified on real hardware, [HB+] original manual
+    -- sheet plus ROM handler-group cross-check, [ROM] database names plus ROM
+    -- cross-check, [HB ] manual sheet only, [MTX] database names only.
     -- ---------------------------------------------------------------------
     type mask_rom_t is array (0 to 255) of std_logic_vector(7 downto 0);
     constant MASK_ROM : mask_rom_t := (
@@ -155,14 +157,14 @@ architecture Behavioral of sw_debounce is
         x"7F", x"FD", x"F7", x"81", x"F8", x"00", x"00", x"00",
         --  4 Disco Fever      SYS3  [HB ]
         x"7F", x"FB", x"86", x"2F", x"86", x"00", x"00", x"00",
-        --  5 Pokerino         SYS4  [MTX]
+        --  5 Pokerino         SYS4  [HB+]
         x"FF", x"FD", x"E0", x"C4", x"10", x"3D", x"00", x"00",
-        --  6 Phoenix          SYS4  [MTX]
+        --  6 Phoenix          SYS4  [HB+]
         x"FF", x"3F", x"FC", x"C0", x"E0", x"C0", x"00", x"00",
-        --  7 Flash            SYS4  [ROM]
+        --  7 Flash            SYS4  [HB+]
         x"FF", x"FF", x"F0", x"03", x"E0", x"7C", x"00", x"00",
-        --  8 Stellar Wars     SYS4  [ROM]
-        x"FF", x"0E", x"C8", x"3E", x"28", x"87", x"01", x"00",
+        --  8 Stellar Wars     SYS4  [HB+]  col5: sw35 = Right 3-Bank STANDUP (Handbuch)
+        x"FF", x"0E", x"C8", x"3E", x"2C", x"87", x"01", x"00",
         --  9 Tri Zone         SYS6  [ROM]
         x"FF", x"0E", x"77", x"9C", x"02", x"00", x"00", x"00",
         -- 10 Time Warp        SYS6  [ROM]
