@@ -75,4 +75,9 @@
 --          5.21 dev_open      4468 / 6272  110592   6.209 ns
 --        NOT TESTED IN HARDWARE - not on any board, including 3.21. The last hardware
 --        tested build is 3.20.
---        The two sound variants (6.03, 7.14) still do not build and are unchanged.
+--        The two sound variants are functionally unchanged and stay dormant, but fixing
+--        their file paths during the move had a side effect: 6.03 (s_cyclone_iv_v4)
+--        BUILDS AGAIN - 5392 / 10320 logic elements, 273408 memory bits, 3.600 ns.
+--        The Error (10349) that was recorded for it was only a consequence of two source
+--        files missing from the project. It is still on function level .03 and untested.
+--        7.14 (s_cyclone_10) still does not build and has no pin assignments at all.
