@@ -1,7 +1,7 @@
 -- version_pkg - the common function level of all WillFA7 board variants
 -- Ralf Thelen 'bontango' - www.lisy.dev
 --
--- The displayed version is BOARD_ID.SW_SUB1 SW_SUB2, for example 3.20:
+-- The displayed version is BOARD_ID.SW_SUB1 SW_SUB2, for example 3.21:
 --   BOARD_ID  first digit  - identifies the board, see variants/<name>/variant_pkg.vhd
 --   SW_SUB1   second digit - common function level, set here
 --   SW_SUB2   third digit  - common function level, set here
@@ -18,5 +18,5 @@ use ieee.std_logic_1164.all;
 
 package version_pkg is
 	constant SW_SUB1 : std_logic_vector(3 downto 0) := x"2";
-	constant SW_SUB2 : std_logic_vector(3 downto 0) := x"0";
+	constant SW_SUB2 : std_logic_vector(3 downto 0) := x"1";
 end package;
