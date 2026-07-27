@@ -232,6 +232,10 @@ signal game_disp_strobe :	std_logic_vector(3 downto 0);
 signal bm_disp_strobe :	std_logic_vector(3 downto 0);
 signal game_disp_bcd 	:	std_logic_vector(7 downto 0);
 signal bm_disp_bcd 	:	std_logic_vector(7 downto 0);
+-- What actually goes out on the display pins. The ports stay 'out' in every
+-- variant; readers (today only the serial monitor) take these signals instead.
+signal disp_strobe_i :	std_logic_vector(3 downto 0);
+signal disp_bcd_i 	:	std_logic_vector(7 downto 0);
 
 -- boot message (bm_) helper
 signal dig0					:  std_logic_vector(3 downto 0);
@@ -296,8 +300,10 @@ port map(
 	); 
 
 -- display bm switch, switch to game in boot phase 3
-disp_bcd <= bm_disp_bcd when boot_phase(3) = '0' else game_disp_bcd;
-disp_strobe <= bm_disp_strobe when boot_phase(3) = '0' else game_disp_strobe;
+disp_bcd_i <= bm_disp_bcd when boot_phase(3) = '0' else game_disp_bcd;
+disp_strobe_i <= bm_disp_strobe when boot_phase(3) = '0' else game_disp_strobe;
+disp_bcd <= disp_bcd_i;
+disp_strobe <= disp_strobe_i;
 
 BM: entity work.boot_message
 port map(

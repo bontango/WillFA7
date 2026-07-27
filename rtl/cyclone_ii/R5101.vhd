@@ -44,7 +44,15 @@ ENTITY R5101 IS
 	(
 		address_a		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
 		address_b		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
-		clock		: IN STD_LOGIC  := '1';
+		-- DELIBERATELY UNUSED on Cyclone II. This megafunction is single clock, and
+		-- that is what the board has been running since v1.00. The port only exists
+		-- so that all families share one entity and the top level does not need a
+		-- family switch. Quartus reports Warning (10036) for it - that is expected.
+		-- Do not "clean this up" and do not wire it to clock0: port B would then move
+		-- from clk_50 to mem_clk and the EEprom scan path would change behaviour on a
+		-- board that has not been hardware tested since 07.2026.
+		clock_a		: IN STD_LOGIC  := '1';
+		clock_b		: IN STD_LOGIC  := '1';
 		data_a		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
 		data_b		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
 		wren_a		: IN STD_LOGIC  := '0';
@@ -137,7 +145,7 @@ BEGIN
 		wrcontrol_wraddress_reg_b => "CLOCK0"
 	)
 	PORT MAP (
-		clock0 => clock,
+		clock0 => clock_b,	-- clk_50, exactly as before. clock_a is not connected.
 		wren_a => wren_a,
 		address_b => address_b,
 		data_b => data_b,
