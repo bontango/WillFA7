@@ -52,10 +52,14 @@ $RepoRoot  = Split-Path -Parent $ScriptDir
 if (-not $Root) { $Root = Join-Path $RepoRoot 'variants' }
 
 # How much setup slack drift counts as a finding, and below which value the slack
-# itself is worth flagging regardless of the baseline. The clock period is 20 ns,
-# so 1 ns of jitter between runs is nothing and 1 ns of remaining slack is fine but
-# worth knowing about.
-$SlackTolerance = 1.0
+# itself is worth flagging regardless of the baseline.
+#
+# Measured, not guessed: two runs of cyclone_10 over byte-identical sources produced
+# 5.690 and 6.791 ns, so 1.1 ns of the number is placement noise. A tolerance below
+# that only produces false alarms, and a column that cries wolf every run is a column
+# nobody reads. The clock period is 20 ns, so 1.5 ns of slop costs nothing in safety -
+# what actually matters is the absolute value, which SlackFloor covers.
+$SlackTolerance = 1.5
 $SlackFloor     = 1.0
 
 # ---------------------------------------------------------------------------
