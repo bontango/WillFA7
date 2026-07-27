@@ -65,6 +65,13 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to reset_sw
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Diag_SW
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Enter_SW
 # Packages first - the analyser never has to guess the order.
+# The serial monitor is instantiated inside 'if HAS_MONITOR generate' and does
+# not exist on this board. The files still have to be here: Quartus resolves
+# entity references in a NOT taken generate branch as well and errors with
+# 10481 otherwise. Nothing is synthesised from them.
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/WillFA7_Monitor.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_tx.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_rx.vhd
 set_global_assignment -name VHDL_FILE variant_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/version_pkg.vhd
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/R5101.qip
@@ -89,7 +96,7 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/pia6821.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
-set_global_assignment -name VHDL_FILE WillFA7.vhd
+set_global_assignment -name VHDL_FILE ../../top/WillFA7.vhd
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/ram.qip
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/rom_2K.qip
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing

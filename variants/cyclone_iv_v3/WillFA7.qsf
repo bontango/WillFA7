@@ -183,7 +183,7 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/pia6821.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
-set_global_assignment -name VHDL_FILE WillFA7.vhd
+set_global_assignment -name VHDL_FILE ../../top/WillFA7.vhd
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv/ram.qip
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv/rom_2K.qip
 set_location_assignment PIN_N14 -to debug

@@ -1,39 +1,16 @@
--- 'WillFA7' a Williams SYS7 MPU on a low cost FPGA
--- Ralf Thelen 'bontango' 02.2023
--- www.lisy.dev
+-- 'WillFA7' - a Williams System 3 to System 7 pinball MPU on a low cost FPGA
+-- Ralf Thelen 'bontango' - www.lisy.dev
 --
--- v1.00 for HW v1.0 based on v024 for HW v0.5
--- v1.01 with org cpu68 & flip flop v1.01
--- v1.02 SYS3 setting support (together with ro SD v2 )
--- v1.03 cpu68.vhd v081 ( daa did not set Zero-Flag which causd the offset bug), back to eeprom v091
--- v1.04 eeprom 0.93, better saving in menue
--- v1.05 first working sys7 version :-) together with cpu68.vhd v083
--- v1.06 secured handling of special solenoids with flipflops v1.1
--- v1.07 more secured handling of special solenoids with spec_sol_trig v0.3
--- v1.08 added slow to fast clock for special solenoid switches, added debouncer for spec_sol_trigger(v0.4)
--- v1.09 pulsetime for spcial solenoids adjustable spec_sol_trigger(v0.5)
--- TODo
--- V2.09 11.05.2023 adapted to Cyclone IV and late Williams SYS7 games
--- v2.10 23.12.2023 deactivate sp_solenoid_mpu(1), as it pulses during game on, selftest on spec sol1 will not work
--- v2.11 different sdc
--- v2.12 with memory protect and flipflop version 1.3 ( solves soundbug)
+-- ONE top level for all board variants. What differs per board lives in
+-- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR), pins.tcl,
+-- device.tcl and WillFA7.sdc. This file must not contain anything board specific.
 --
--- version 3.12 	 -- converted Cyclone IV v4.x board ( EP4CE6E22C8N ) 
--- v3.13 with eeprom v094 which has reduced clock to 100KHz (old 1MHz)
--- v3.14 solenoid 17 with peak filter as we have 9uS peaks each 2mS on sp_solenoid_mpu(1);
--- v3.15 Quartus 22.1, claude debug session: timing corrected, mem_clk confirmed, BT28 (SYS3 settings) corrected
--- v2.15 for Cyclone IV v3 (EP4CE6F17C8)
--- v2.16 with serial Monitor API & intermidiate with possible 'CONTACT' patch for special solenoid
--- v3.17 eeprom write robustnes (new SD_card and eeprom.vhd, SPI Master consolidated )
--- v2.18 switch matrix hardware debouncer (sw_debounce.vhd) against multiple switch triggers - per-switch, strobe-aware, incl. 2-FF sync
--- v2.19 special solenoid trigger: debounce time switchable via option DIP4 (57uS -> 250uS), against neighbour cross-triggering (sol 20 fired sol 19)
---       plus META_SPECIAL1..6 synchronizers moved from clk_50 to cpu_clk (target domain of spec_sol_trigger)
--- v2.20 switch matrix debounce masks selected by game number (sw_debounce, MASK_ROM)
---       plus FIX: LED_active ist die Blanking-Leitung (IC13 /OE + /RESET der 273er) und wird
---       wieder ausschliesslich von 'blanking' getrieben. Behebt den kurzen Blanking-Einbruch
---       ~6s nach Boot und bei jedem EEprom-Save, der ab v3.17 auftrat.
-
-
+-- The displayed version is BOARD_ID.SW_SUB1 SW_SUB2 - first digit from variant_pkg,
+-- the other two from rtl/common/version_pkg.vhd. Version history: bin/changelog.txt.
+--
+-- Must stay VHDL-93: the Cyclone II variant builds with Quartus 13.0sp1. In
+-- particular there is no 'else generate' (VHDL-2008), and numeric_std must not be
+-- added next to std_logic_unsigned - their operators would become ambiguous.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
@@ -223,7 +200,7 @@ signal sp_solenoid	:	std_logic_vector(7 downto 0); --6 special solenoids
 																		--plus two solenoids for flippers
 signal SPC_Sol_Trig_stable	:	std_logic_vector(6 downto 1); --stable switches spec sol trigger
 signal sp_solenoid_trig	:	std_logic_vector(6 downto 1); --6 special solenoids from trigger 
-signal sp_solenoid_trig_6		:	std_logic; --option for game CONTACT							 
+signal sp_solenoid_trig_6		:	std_logic; --option for game CONTACT
 signal sp_solenoid_mpu	:	std_logic_vector(6 downto 1); --6 special solenoids from MPU (selftest)
 
 -- diff
@@ -311,12 +288,12 @@ begin
 
 LED_status <= not boot_phase(0); -- for display blanking
 LED_sd_Error <=  SDcard_error;
--- ACHTUNG: LED_active (PIN_3) ist KEINE reine LED, sondern die Blanking-Leitung:
---   PIN_3 -> IC13 74HCT240 /OE (switch strobes)
---         -> T9 -> blanking_n -> /RESET IC3,4,5 (Solenoid-Latches) und IC6,7 (Lamp-Latches)
--- '1' loescht alle Solenoid- und Lamp-Latches und sperrt die Switch-Strobes.
--- Dieser Pin darf ausschliesslich 'blanking' fuehren - nie fuer Status-/Fehleranzeigen
--- umwidmen (Regression v3.17, siehe docs/blanking_led_active.md in CycloneIV_v4).
+-- CAREFUL: LED_active is NOT a plain LED, it is the driver board blanking line:
+--   -> IC13 74HCT240 /OE (switch strobes)
+--   -> T9 -> blanking_n -> /RESET of IC3,4,5 (solenoid latches) and IC6,7 (lamp latches)
+-- A '1' clears every solenoid and lamp latch and blocks the switch strobes.
+-- This pin must carry 'blanking' and nothing else - never repurpose it for status or
+-- error indication. That was the .17 to .19 regression, see docs/blanking_led_active.md.
 LED_active <= blanking;
 
 -- dev boards only; on every other board this is a virtual pin
@@ -399,10 +376,10 @@ SPI_CLK <= SDcard_CLK when boot_phase(2) = '0' else EEprom_CLK;
 ----------------------
 SD_CARD: entity work.SD_Card
 generic map(
-	Read_Bytes => 12288  -- 12 KByte = 24 sectors per game (6 ROMs x 2K)
+	Read_Bytes => ROM_COUNT*2048  -- 2K per ROM block, see variant_pkg.vhd
 )
 port map(
-	i_clk		=> clk_50,	
+	i_clk		=> clk_50,
 	-- Control/Data Signals,
    i_Rst_L  => boot_phase(1), -- first dip read finished
 	-- PMOD SPI Interface
@@ -455,8 +432,8 @@ port map(
 		-- signal when finished
 	done	=> boot_phase(3), -- set to '1' when first read of eeprom and write to cmos is done
 	o_wr_in_progress => eeprom_wr_in_progress,
-	-- nicht beschaltet: die 1-Hz-Blinkanzeige lag frueher auf LED_active,
-	-- das ist aber die Blanking-Leitung (siehe docs/blanking_led_active.md in CycloneIV_v4)
+	-- left open on purpose: the 1 Hz blink used to be routed to LED_active, but that
+	-- pin is the blanking line (see docs/blanking_led_active.md)
 	EEprom_error => open
 	);
 -----------------------------------------------
@@ -538,7 +515,12 @@ cpu_irq <= pia1_irq_a or pia1_irq_b
 ------------------
 --
 --roms 2K each
-rom0_cs   <= '1' when cpu_addr(14 downto 11) = "1010" and cpu_vma='1' else '0'; --5000-57FF
+-- rom1..rom5 sit at the same addresses on every board. Only rom0 (5000-57FF) is
+-- board dependent, and it is not just "one block less": a five ROM board reads a
+-- 10 KByte SD card image whose first 2K window goes to 5800h, a six ROM board a
+-- 12 KByte image whose first 2K window goes to 5000h. Two different file formats.
+-- That is why both wr_rom tables are written out instead of derived from an offset -
+-- they can be checked line by line against the two image layouts.
 rom1_cs   <= '1' when cpu_addr(14 downto 11) = "1011" and cpu_vma='1' else '0'; --5800-5FFF
 rom2_cs   <= '1' when cpu_addr(14 downto 11) = "1100" and cpu_vma='1' else '0'; --6000-67FF
 rom3_cs   <= '1' when cpu_addr(14 downto 11) = "1101" and cpu_vma='1' else '0'; --6800-6FFF
@@ -548,18 +530,36 @@ rom5_cs   <= '1' when cpu_addr(14 downto 11) = "1111" and cpu_vma='1' else '0'; 
 ------------------
 -- ROMs ----------
 -- moved to RAM, initial read from SD
--- one file of 12Kbyte for all Williams variants 
--- mapping is done within 12KByte file
--- address selection: read from SD when wr_rom == 1
--- else map to address room
-wr_rom0 <= '1' when address_sd_card(13 downto 11) = "000" and wr_rom='1' else '0'; --first 2K
-wr_rom1 <= '1' when address_sd_card(13 downto 11) = "001" and wr_rom='1' else '0'; --sec 2K
-wr_rom2 <= '1' when address_sd_card(13 downto 11) = "010" and wr_rom='1' else '0'; --third 2K
-wr_rom3 <= '1' when address_sd_card(13 downto 11) = "011" and wr_rom='1' else '0'; -- fourth 2K
-wr_rom4 <= '1' when address_sd_card(13 downto 11) = "100" and wr_rom='1' else '0'; -- fift 2K
-wr_rom5 <= '1' when address_sd_card(13 downto 11) = "101" and wr_rom='1' else '0'; -- sixt 2K
+-- one file per game for all Williams variants, mapping is done inside that file
+-- address selection: read from SD when wr_rom == 1, else map to address room
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+GEN_ROM0: if ROM_COUNT = 6 generate
+	-- 12 KByte image, first 2K window at 5000h
+	rom0_cs <= '1' when cpu_addr(14 downto 11) = "1010" and cpu_vma='1' else '0'; --5000-57FF
+	wr_rom0 <= '1' when address_sd_card(13 downto 11) = "000" and wr_rom='1' else '0'; --first 2K
+	wr_rom1 <= '1' when address_sd_card(13 downto 11) = "001" and wr_rom='1' else '0'; --sec 2K
+	wr_rom2 <= '1' when address_sd_card(13 downto 11) = "010" and wr_rom='1' else '0'; --third 2K
+	wr_rom3 <= '1' when address_sd_card(13 downto 11) = "011" and wr_rom='1' else '0'; --fourth 2K
+	wr_rom4 <= '1' when address_sd_card(13 downto 11) = "100" and wr_rom='1' else '0'; --fift 2K
+	wr_rom5 <= '1' when address_sd_card(13 downto 11) = "101" and wr_rom='1' else '0'; --sixt 2K
+end generate;
 
-rom_address <= 
+GEN_ROM0_OFF: if ROM_COUNT /= 6 generate
+	-- 10 KByte image, first 2K window at 5800h. 5000-57FF stays empty and reads FF
+	-- through the cpu_din mux below.
+	rom0_cs   <= '0';
+	wr_rom0   <= '0';
+	rom0_dout <= x"FF";	-- must be driven: with ROM_0 gone it would have no source at all
+	wr_rom1 <= '1' when address_sd_card(13 downto 11) = "000" and wr_rom='1' else '0'; --first 2K
+	wr_rom2 <= '1' when address_sd_card(13 downto 11) = "001" and wr_rom='1' else '0'; --sec 2K
+	wr_rom3 <= '1' when address_sd_card(13 downto 11) = "010" and wr_rom='1' else '0'; --third 2K
+	wr_rom4 <= '1' when address_sd_card(13 downto 11) = "011" and wr_rom='1' else '0'; --fourth 2K
+	wr_rom5 <= '1' when address_sd_card(13 downto 11) = "100" and wr_rom='1' else '0'; --fift 2K
+end generate;
+
+rom_address <=
   address_sd_card(10 downto 0) when wr_rom = '1' else
   cpu_addr(10 downto 0);	
 
@@ -820,8 +820,8 @@ port map(
 -- The per-switch mask inside the module leaves level/confirm-read switches (drop-target
 -- banks, outhole/trough, eject holes, kickers, locks, ramps), spinners and jets RAW;
 -- only momentary switches (stand-ups, rollovers, lanes, cabinet) are debounced.
--- Since v2.20 the mask is selected by game number, so every supported game gets its own
--- table. See docs/switch_debounce_analysis.md and docs/switch_masks.md in CycloneIV_v4.
+-- Since .20 the mask is selected by game number, so every supported game gets its own
+-- table. See docs/switch_debounce_analysis.md and docs/switch_masks.md.
 -- inline between the sw_return pins and PIA2 pa_i
 SWDEB: entity work.sw_debounce
 generic map(
@@ -831,7 +831,7 @@ generic map(
 port map(
 	clk           => cpu_clk,
 	i_Rst_L       => reset_l,
-	enable        => not game_option(5),  -- option DIP5 ON (game_option(5)='0') -> debounce; OFF -> raw v2.17 passthrough
+	enable        => not game_option(5),  -- option DIP5 ON (game_option(5)='0') -> debounce; OFF -> raw .17 passthrough
 	game          => not game_select,  -- game number 0..31; DIPs are active low, same as 'selection' at SD_Card/EEprom
 	sw_strobe     => sw_strobe,        -- one-hot column select (buffer port, readable)
 	sw_return_raw => sw_return,        -- raw returns from the pins
@@ -856,8 +856,8 @@ port map(
    addr => cpu_addr(1 downto 0),     
    data_in => cpu_dout,  
 	data_out => pia2_dout, 
-	irqa => pia2_irq_a,   
-	irqb => pia2_irq_b,    
+	irqa => pia2_irq_a,
+	irqb => pia2_irq_b,
 	pa_i => sw_return_deb,
 	pa_o => open,
 	ca1 => '0',
@@ -1086,7 +1086,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(1),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig(1)
 	); 
 META_SPECIAL2: entity work.Cross_Slow_To_Fast_Clock
@@ -1101,7 +1101,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(2),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig(2)
 	); 
 META_SPECIAL3: entity work.Cross_Slow_To_Fast_Clock
@@ -1116,7 +1116,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(3),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig(3)
 	); 
 META_SPECIAL4: entity work.Cross_Slow_To_Fast_Clock
@@ -1131,7 +1131,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(4),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig(4)
 	); 
 META_SPECIAL5: entity work.Cross_Slow_To_Fast_Clock
@@ -1146,7 +1146,7 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(5),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig(5)
 	); 	
 META_SPECIAL6: entity work.Cross_Slow_To_Fast_Clock
@@ -1155,7 +1155,7 @@ port map(
 	o_Q => SPC_Sol_Trig_stable(6),
    i_Fast_Clk => cpu_clk
 	); 	
-															-- For Game CONTACT no protection on spec. sol 6 as permanent
+-- For Game CONTACT no protection on spec. sol 6 as permanent
 -- special solenoïd is SOL22 (moving target relay) pin 9 on 2P12	
 -- active with option dip 6 to ON
 sp_solenoid_trig(6) <= SPC_Sol_Trig_stable(6) when game_option(6) = '0' else sp_solenoid_trig_6;
@@ -1165,22 +1165,24 @@ port map(
 	i_Rst_L => reset_l,
    trigger => SPC_Sol_Trig_stable(6),
 	pulse_cfg => game_option(3 downto 2),
-	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> v2.18 behaviour
+	long_debounce => not game_option(4), -- DIP4 ON -> long debounce, OFF -> .18 behaviour
 	solenoid => sp_solenoid_trig_6
 	); 
 	
 ----------------
 --roms
 ----------------
--- 2K area 5000h-57ffh
-ROM_0: entity work.rom_2K
-port map(
-	address => rom_address,	
-	clock => clk_50,
-	data => data_sd_card,
-	wren => wr_rom0,
-	q	=> rom0_dout
-	);
+GEN_ROM0_INST: if ROM_COUNT = 6 generate
+	-- 2K area 5000h-57ffh
+	ROM_0: entity work.rom_2K
+	port map(
+		address => rom_address,	
+		clock => clk_50,
+		data => data_sd_card,
+		wren => wr_rom0,
+		q	=> rom0_dout
+		);
+end generate;
 
 -- 2K area 5800h-5fffh
 ROM_1: entity work.rom_2K
@@ -1232,17 +1234,33 @@ port map(
 	q	=> rom5_dout
 	);
 
---Interface to WillFA7 monitor Webapp
-monitor: entity work.willfa7_monitor
-port map(   
-	clk => clk_50,
-	rst => reset_l,
-	txd => USB_Rx,	
-	rxd => USB_Tx,
-	disp_bcd => disp_bcd_i,
-	disp_strobe => disp_strobe_i,
-	debug => debug
-);
+----------------------------------------------------------------------------
+-- serial monitor API (option 'serial_api')
+-- Only the v3 board brings the USB pins out. The module is worth about 550 logic
+-- elements, which is more than the EP2C5 of the Cyclone II board has left, so it
+-- has to generate away rather than be optimised away.
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+----------------------------------------------------------------------------
+GEN_MONITOR: if HAS_MONITOR generate
+	monitor: entity work.willfa7_monitor
+	port map(
+		clk => clk_50,
+		rst => reset_l,
+		txd => USB_Rx,
+		rxd => USB_Tx,
+		disp_bcd => disp_bcd_i,
+		disp_strobe => disp_strobe_i,
+		debug => debug
+	);
+end generate;
+
+GEN_NO_MONITOR: if not HAS_MONITOR generate
+	-- Both are virtual pins on these boards, but an output port still needs a
+	-- driver - otherwise Quartus ties it to GND without saying so.
+	USB_Rx <= '1';	-- UART idle level
+	debug  <= '0';
+end generate;
 
 end rtl;
-		

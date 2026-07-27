@@ -22,5 +22,12 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/slow_to_fast_clock.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/spec_sol_trigger.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/SPI_Master.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/sw_debounce.vhd
+# The serial monitor is instantiated inside 'if HAS_MONITOR generate' and only exists
+# on the v3 board. The files are nevertheless part of EVERY variant: Quartus resolves
+# entity references in a NOT taken generate branch as well and errors with 10481
+# otherwise. Nothing is synthesised from them where HAS_MONITOR is false.
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/WillFA7_Monitor.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_tx.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_rx.vhd
 set_global_assignment -name VHDL_FILE ../../top/WillFA7.vhd
 set_global_assignment -name SDC_FILE WillFA7.sdc
