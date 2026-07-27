@@ -96,6 +96,12 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+# Optional top level ports this board does not have. Without VIRTUAL_PIN
+# Quartus treats them as used pins and places and drives them somewhere.
+set_instance_assignment -name VIRTUAL_PIN ON -to LED_debug
+set_instance_assignment -name VIRTUAL_PIN ON -to USB_Tx
+set_instance_assignment -name VIRTUAL_PIN ON -to USB_Rx
+set_instance_assignment -name VIRTUAL_PIN ON -to debug
 set_location_assignment PIN_23 -to clk_50
 set_location_assignment PIN_43 -to CS_EEprom
 set_location_assignment PIN_7 -to CS_SDcard

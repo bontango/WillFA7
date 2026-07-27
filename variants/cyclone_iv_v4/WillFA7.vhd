@@ -41,26 +41,33 @@ use ieee.std_logic_unsigned.all;
 use work.variant_pkg.all;
 use work.version_pkg.all;
 	
-entity WillFA7 is	
-	port(		
-	   -- the FPGA board
-		clk_50	: in std_logic; 	-- PIN17
-		reset_sw  : in std_logic; 	-- PIN144 --goes Low on reset(push)
-		LED_SD_Error 	: out STD_LOGIC;	-- PIN3	LED0				
-		LED_active 	: out STD_LOGIC;  -- PIN7 LED1
-		LED_status 	: out STD_LOGIC;	-- PIN9 LED2
-				
+entity WillFA7 is
+	port(
+	   -- The FPGA board.
+	   -- Pin numbers are deliberately NOT in here: they differ per board and live in
+	   -- variants/<name>/pins.tcl, which is the only place they are true.
+		clk_50	: in std_logic;
+		reset_sw  : in std_logic; 	--goes Low on reset(push)
+		LED_SD_Error 	: out STD_LOGIC;
+
+		-- CAREFUL: LED_active and LED_status are not plain LEDs. LED_active is the
+		-- driver board blanking line (IC13 74HCT240 /OE plus /RESET of the five
+		-- 74HCT273 latches), LED_status is the display blanking. Never repurpose them
+		-- for status or error indication - see docs/blanking_led_active.md.
+		LED_active 	: out STD_LOGIC;
+		LED_status 	: out STD_LOGIC;
+
 		-- SPI SD card & EEprom
 		CS_SDcard	: 	buffer 	std_logic;
 		CS_EEprom	: 	buffer 	std_logic;
 		MOSI			: 	out 	std_logic;
 		MISO			: 	in 	std_logic;
 		SPI_CLK			: 	out 	std_logic;
-						
+
 		--displays
 		disp_strobe: out 	std_logic_vector(3 downto 0);
 		disp_bcd: out 	std_logic_vector(7 downto 0);
-		
+
 		--switches
 		sw_strobe: buffer 	std_logic_vector(7 downto 0);
 		sw_return: in 	std_logic_vector(7 downto 0);
@@ -70,39 +77,47 @@ entity WillFA7 is
 		lamp_strobe_sel: buffer std_logic; --RTH debug only, switch back to out
 		lamp_row_sel: out std_logic;
 		sound_com_sel: out std_logic;
-		
+
 		--solenoids (shared)
-		solenoids: out		std_logic_vector(7 downto 0); 
+		solenoids: out		std_logic_vector(7 downto 0);
 		sol_1_8_sel: buffer std_logic;
 		sol_9_16_sel: out std_logic;
 		sol_spec_sel: out std_logic;
-		
+
 		-- spec solenoid triggers
 		SPC_Sol_Trig: in 	std_logic_vector(6 downto 1);
-		
+
 		--diag
 		Mem_prot: in std_logic;
 		Advance: in std_logic;
 		up_down: in std_logic;
 		Enter_SW: in std_logic;
 		Diag_SW: in std_logic;
-				
+
 		--dips Williams
-		W_PA_DIP: in std_logic_vector(3 downto 0); 
-		
+		W_PA_DIP: in std_logic_vector(3 downto 0);
+
 		--dips WillFA7
 		Dip_Ret_1: in std_logic;
 		Dip_Ret_2: in std_logic;
 		Dip_Ret_3: in std_logic;
-		
+
 		DIP_Str_1: out std_logic;
 		DIP_Str_2: out std_logic;
 		DIP_Str_3: out std_logic;
-		DIP_Str_4: out std_logic
-						
-		--debug cyclone IV only
-		--debug: out std_logic
-		
+		DIP_Str_4: out std_logic;
+
+		-- Optional. Not every board has these pins, but they are declared everywhere so
+		-- that all variants can share one top level. A board without the pin gets
+		-- VIRTUAL_PIN in its generated .qsf, listed in variants/<name>/variant.psd1.
+		-- Simply leaving an output unassigned is not an option: to Quartus it is a used
+		-- pin, RESERVE_ALL_UNUSED_PINS does not cover it, and it would be placed and
+		-- driven on some pin of the board.
+		LED_debug	: out STD_LOGIC;	-- dev boards only, follows reset_sw
+		USB_Tx: in std_logic;		-- serial monitor API, data into the FPGA
+		USB_Rx: out std_logic;		-- serial monitor API, data out of the FPGA
+		debug: out std_logic		-- scope probe, driven by the serial monitor
+
 		);
 end;
 
@@ -302,6 +317,14 @@ LED_sd_Error <=  SDcard_error;
 -- Dieser Pin darf ausschliesslich 'blanking' fuehren - nie fuer Status-/Fehleranzeigen
 -- umwidmen (Regression v3.17..v3.19, siehe docs/blanking_led_active.md).
 LED_active <= blanking;
+
+-- dev boards only; on every other board this is a virtual pin
+LED_debug <= reset_sw;
+
+-- No serial monitor on this board. Both are virtual pins here, but an output
+-- port still needs a driver - otherwise Quartus ties it to GND silently.
+USB_Rx <= '1';	-- UART idle level
+debug  <= '0';
 
 opt_nvram_init_n <= game_option(1); -- 0 if option Dip1 is set
 

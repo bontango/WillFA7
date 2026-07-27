@@ -4,6 +4,8 @@
     BoardId     = 4
     RtlFamily   = 'cyclone_10'
     Options     = @()
+    BinFolder   = 'cyclone_10'
+    ReleaseArtifact = 'jic'
     Dormant     = $false
     VirtualPins = @('LED_debug', 'USB_Tx', 'USB_Rx', 'debug')
     Notes       = ''

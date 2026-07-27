@@ -2,7 +2,7 @@
 <cof>
 	<eprom_name>EPCS4</eprom_name>
 	<flash_loader_device>EP2C5</flash_loader_device>
-	<output_filename>WillFA7_wo_ID_check.jic</output_filename>
+	<output_filename>output_files/willfa7.jic</output_filename>
 	<n_pages>1</n_pages>
 	<width>1</width>
 	<mode>7</mode>

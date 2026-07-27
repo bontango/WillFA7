@@ -51,6 +51,13 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
 if (-not $Root) { $Root = Join-Path $RepoRoot 'variants' }
 
+# How much setup slack drift counts as a finding, and below which value the slack
+# itself is worth flagging regardless of the baseline. The clock period is 20 ns,
+# so 1 ns of jitter between runs is nothing and 1 ns of remaining slack is fine but
+# worth knowing about.
+$SlackTolerance = 1.0
+$SlackFloor     = 1.0
+
 # ---------------------------------------------------------------------------
 # Quartus installations. Key = substring of the FAMILY value in the .qsf,
 # DEFAULT applies when nothing matches. quartus_sh is not on the PATH here.
@@ -239,11 +246,18 @@ foreach ($dir in $found) {
         $leN = Get-FirstNumber $le
         $mmN = Get-FirstNumber $mem
         $bits = @()
+        # Logic elements and memory bits must match exactly - they are a property of
+        # the design, not of the run.
         if ($null -ne $leN -and $leN -ne [int]$b.LE)         { $bits += ("LE {0:+#;-#;0}" -f ($leN - [int]$b.LE)) }
         if ($null -ne $mmN -and $mmN -ne [int]$b.MemoryBits) { $bits += ("Mem {0:+#;-#;0}" -f ($mmN - [int]$b.MemoryBits)) }
+        # Slack is placement dependent and jitters by a few hundred picoseconds
+        # between runs of identical sources. Only a big move or an actually tight
+        # result is worth reporting - anything else is noise that trains you to
+        # ignore the whole column.
         if ($slk) {
             $d = [double]$slk - [double]$b.Slack
-            if ([math]::Abs($d) -gt 0.0005) { $bits += ("Slack {0:+0.000;-0.000}" -f $d) }
+            if ([math]::Abs($d) -gt $SlackTolerance) { $bits += ("Slack {0:+0.000;-0.000}" -f $d) }
+            elseif ([double]$slk -lt $SlackFloor)    { $bits += ("Slack only $slk ns") }
         }
         if ($bits) { $delta = $bits -join ', ' } else { $delta = '=' }
     }

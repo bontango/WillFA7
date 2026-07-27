@@ -1,6 +1,6 @@
 Variant;Device;LE;LEtotal;MemoryBits;Slack;Note
-cyclone_ii;EP2C5T144C8;4312;4608;94208;2.716;Quartus 13.0sp1. Was 4368 LE / 3.754 ns before the move - this board carried its own cpu68 v0.83 and now uses the shared v0.85.
-cyclone_iv_v3;EP4CE6F17C8;5014;6272;110592;6.863;Etappe 1 reference, v2.20, includes serial monitor
-cyclone_iv_v4;EP4CE6E22C8;4462;6272;110592;6.115;Etappe 1 reference, v3.20, lead variant
-cyclone_10;10CL006YE144C8G;4468;6272;110592;6.121;Etappe 1 reference, v4.20
-cyclone_iv_dev_open;EP4CE6E22C8;4473;6272;110592;6.619;Etappe 1 reference, v5.20
+cyclone_ii;EP2C5T144C8;4312;4608;94208;4.392;Quartus 13.0sp1. Was 4368 LE before the move - this board carried its own cpu68 v0.83 and now uses the shared v0.85.
+cyclone_iv_v3;EP4CE6F17C8;5022;6272;110592;6.471;Includes the serial monitor, which is worth about 550 LE.
+cyclone_iv_v4;EP4CE6E22C8;4484;6272;110592;6.725;Lead variant.
+cyclone_10;10CL006YE144C8G;4473;6272;110592;5.690;
+cyclone_iv_dev_open;EP4CE6E22C8;4468;6272;110592;6.209;

@@ -6,6 +6,8 @@
     BoardId     = 1               # first digit of the displayed version, see variant_pkg.vhd
     RtlFamily   = 'cyclone_ii'    # which rtl/<family>/ folder supplies the megafunctions
     Options     = @()             # 'serial_api' and/or 'sound'
+    BinFolder   = 'Cyclone_II'
+    ReleaseArtifact = 'pof'   # EPCS4, programmed straight from the compile output
     Dormant     = $false
     # Optional top level ports this board does NOT have. They stay in the port list
     # and get VIRTUAL_PIN so Quartus does not place and drive them on a real pin.

@@ -64,6 +64,11 @@ set_global_assignment -name AUTO_RAM_RECOGNITION ON
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to reset_sw
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Diag_SW
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Enter_SW
+# Optional top level ports this board does not have. Without VIRTUAL_PIN
+# Quartus treats them as used pins and places and drives them somewhere.
+set_instance_assignment -name VIRTUAL_PIN ON -to USB_Tx
+set_instance_assignment -name VIRTUAL_PIN ON -to USB_Rx
+set_instance_assignment -name VIRTUAL_PIN ON -to debug
 set_location_assignment PIN_91 -to clk_50
 set_location_assignment PIN_75 -to CS_EEprom
 set_location_assignment PIN_70 -to CS_SDcard
