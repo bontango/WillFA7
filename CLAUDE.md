@@ -53,7 +53,7 @@ archive/         historische Modulstaende, in keinem Build
 | `cyclone_iv_v4` | 3.21 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
 | `cyclone_10` | 4.21 | 10CL006YE144C8G | 22.1std | aktiv |
 | `cyclone_iv_dev_open` | 5.21 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
-| `s_cyclone_iv_v4` | 6.03 | EP4CE10E22C8 | 22.1std | **ruht**, mit Soundkarte |
+| `s_cyclone_iv_v4` | 6.03 | EP4CE10E22C8 | 22.1std | **ruht**, mit Soundkarte, baut wieder |
 | `s_cyclone_10` | 7.14 | 10CL010YE144C6G | 22.1std | **ruht**, unfertig |
 
 Angezeigte Version = `BOARD_ID.SW_SUB1 SW_SUB2`. Erste Stelle aus
@@ -61,7 +61,7 @@ Angezeigte Version = `BOARD_ID.SW_SUB1 SW_SUB2`. Erste Stelle aus
 Ein Release ändert **eine** Zahl.
 
 **Hardware-Teststand: nur 3.20 war getestet.** `.21` ist auf keinem Board getestet.
-Die beiden S-Varianten bauen nicht (Gründe in `VARIANTEN.md`).
+Von den S-Varianten baut `s_cyclone_iv_v4` wieder (Funktionsstand `.03`, ungetestet), `s_cyclone_10` nicht. Gründe in `VARIANTEN.md`.
 
 ## Build
 

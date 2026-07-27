@@ -4,3 +4,4 @@ cyclone_iv_v3;EP4CE6F17C8;5022;6272;110592;6.471;Includes the serial monitor, wh
 cyclone_iv_v4;EP4CE6E22C8;4484;6272;110592;6.725;Lead variant.
 cyclone_10;10CL006YE144C8G;4473;6272;110592;5.690;
 cyclone_iv_dev_open;EP4CE6E22C8;4468;6272;110592;6.209;
+s_cyclone_iv_v4;EP4CE10E22C8;5392;10320;273408;3.600;Dormant, function level .03. Builds again since the path fix, not hardware tested. Only checked with -All.

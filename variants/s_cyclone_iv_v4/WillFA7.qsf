@@ -1,36 +1,53 @@
-# ---------------------------------------------------------------------------
-# GENERATED FILE - do not edit.
+# -------------------------------------------------------------------------- #
 #
-# Variant : cyclone_10 - WillFA7 Cyclone 10 LP (10CL006YE144C8G)
-# Made by : scripts\gen_qsf.ps1
-# Sources : scripts\common_header.tcl, device.tcl, pins.tcl,
-#           scripts\files_common.tcl + files_<family>.tcl + files_<option>.tcl
+# Copyright (C) 1991-2013 Altera Corporation
+# Your use of Altera Corporation's design tools, logic functions 
+# and other software and tools, and its AMPP partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Altera Program License 
+# Subscription Agreement, Altera MegaCore Function License 
+# Agreement, or other applicable license agreement, including, 
+# without limitation, that your use is for the sole purpose of 
+# programming logic devices manufactured by Altera and sold by 
+# Altera or its authorized distributors.  Please refer to the 
+# applicable agreement for further details.
 #
-# Change device.tcl / pins.tcl / variant.psd1 or the file lists, then rerun
-# gen_qsf.ps1. Editing this file directly is lost on the next run.
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------------- #
+#
+# Quartus II 64-Bit
+# Version 13.0.1 Build 232 06/12/2013 Service Pack 1 SJ Web Edition
+# Date created = 17:48:15  November 29, 2022
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		WillFA7_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Altera recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus II software
+#    and any changes you make may be lost or overwritten.
+#
+# -------------------------------------------------------------------------- #
 
-# --- board -----------------------------------------------------------------
-set_global_assignment -name FAMILY "Cyclone 10 LP"
-set_global_assignment -name DEVICE 10CL006YE144C8G
-set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
-set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
-set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
-set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to reset_sw
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
 
-# --- shared globals --------------------------------------------------------
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name DEVICE EP4CE10E22C8
 set_global_assignment -name TOP_LEVEL_ENTITY WillFA7
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "17:48:15  NOVEMBER 29, 2022"
+set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
@@ -43,19 +60,9 @@ set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS R
 set_global_assignment -name RESERVE_ASDO_AFTER_CONFIGURATION "USE AS REGULAR IO"
 set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS OFF
 set_global_assignment -name AUTO_RAM_RECOGNITION ON
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to reset_sw
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Diag_SW
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to Enter_SW
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
-
-# --- optional top level ports this board does not have ---------------------
-# They stay in the port list so all variants share one top level. VIRTUAL_PIN
-# keeps Quartus from placing and driving them on a real pin.
-set_instance_assignment -name VIRTUAL_PIN ON -to LED_debug
-set_instance_assignment -name VIRTUAL_PIN ON -to USB_Tx
-set_instance_assignment -name VIRTUAL_PIN ON -to USB_Rx
-set_instance_assignment -name VIRTUAL_PIN ON -to debug
-
-# --- pins ------------------------------------------------------------------
 set_location_assignment PIN_23 -to clk_50
 set_location_assignment PIN_43 -to CS_EEprom
 set_location_assignment PIN_7 -to CS_SDcard
@@ -87,15 +94,16 @@ set_location_assignment PIN_99 -to sol_1_8_sel
 set_location_assignment PIN_100 -to sol_9_16_sel
 set_location_assignment PIN_98 -to sol_spec_sel
 set_location_assignment PIN_111 -to solenoids[7]
-set_location_assignment PIN_85 -to solenoids[6]
+set_location_assignment PIN_110 -to solenoids[6]
+set_location_assignment PIN_104 -to solenoids[5]
 set_location_assignment PIN_101 -to solenoids[4]
 set_location_assignment PIN_103 -to solenoids[3]
 set_location_assignment PIN_105 -to solenoids[2]
 set_location_assignment PIN_106 -to solenoids[1]
 set_location_assignment PIN_112 -to solenoids[0]
-set_location_assignment PIN_32 -to SPI_CLK
+set_location_assignment PIN_30 -to SPI_CLK
 set_location_assignment PIN_60 -to sw_return[7]
-set_location_assignment PIN_75 -to sw_return[6]
+set_location_assignment PIN_64 -to sw_return[6]
 set_location_assignment PIN_65 -to sw_return[5]
 set_location_assignment PIN_66 -to sw_return[4]
 set_location_assignment PIN_67 -to sw_return[3]
@@ -112,11 +120,7 @@ set_location_assignment PIN_52 -to sw_strobe[1]
 set_location_assignment PIN_54 -to sw_strobe[0]
 set_location_assignment PIN_24 -to Dip_Ret_3
 set_location_assignment PIN_25 -to Dip_Ret_2
-set_location_assignment PIN_22 -to Dip_Ret_1
-set_location_assignment PIN_34 -to DIP_Str_2
-set_location_assignment PIN_38 -to DIP_Str_1
-set_location_assignment PIN_39 -to DIP_Str_4
-set_location_assignment PIN_42 -to DIP_Str_3
+set_location_assignment PIN_28 -to Dip_Ret_1
 set_location_assignment PIN_55 -to Mem_prot
 set_location_assignment PIN_58 -to Advance
 set_location_assignment PIN_59 -to up_down
@@ -137,36 +141,42 @@ set_location_assignment PIN_87 -to W_PA_DIP[0]
 set_location_assignment PIN_80 -to W_PA_DIP[1]
 set_location_assignment PIN_83 -to W_PA_DIP[2]
 set_location_assignment PIN_86 -to W_PA_DIP[3]
-set_location_assignment PIN_84 -to solenoids[5]
-
-# --- sources ---------------------------------------------------------------
-set_global_assignment -name VHDL_FILE variant_pkg.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/version_pkg.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/AM8T28.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/boot_message.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/byte_to_decimal.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/count_to_zero.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/detect_sw.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/EEprom.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/irq_generator.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/one_pulse_only.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/peak_filter.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/pia6821.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/read_the_dips.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/SD_Card.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/slow_to_fast_clock.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/spec_sol_trigger.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/SPI_Master.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/common/sw_debounce.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/serial_api/WillFA7_Monitor.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_tx.vhd
-set_global_assignment -name VHDL_FILE ../../rtl/serial_api/uart_rx.vhd
-set_global_assignment -name VHDL_FILE ../../top/WillFA7.vhd
+set_location_assignment PIN_39 -to SB_Speech
+set_location_assignment PIN_34 -to SB_Sound
+set_location_assignment PIN_11 -to Dip_Ret_4
+set_location_assignment PIN_42 -to SB_Test
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SB_Test
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name VHDL_FILE ../../rtl/sound/SPI_Master.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/sound/SD_Card.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/sound/crc16_ccitt.vhd
+set_global_assignment -name VHDL_FILE local/soundtest.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/sound/dac.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/sound/hc55564.vhd
+set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv_s/williams_pll.qip
+set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv_s/MPU_RAM.qip
+set_global_assignment -name VHDL_FILE ../../rtl/sound/WISOF.vhd
+set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv_s/SB_ROM.qip
+set_global_assignment -name VHDL_FILE local/peak_filter.vhd
 set_global_assignment -name SDC_FILE WillFA7.sdc
-set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/R5101.qip
-set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/ram.qip
-set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/rom_2K.qip
-set_global_assignment -name QIP_FILE ../../rtl/cyclone_10/williams_pll.qip
+set_global_assignment -name VHDL_FILE local/one_pulse_only.vhd
+set_global_assignment -name VHDL_FILE local/count_to_zero.vhd
+set_global_assignment -name VHDL_FILE local/irq_generator.vhd
+set_global_assignment -name VHDL_FILE local/spec_sol_trigger.vhd
+set_global_assignment -name VHDL_FILE local/detect_sw.vhd
+set_global_assignment -name VHDL_FILE local/byte_to_decimal.vhd
+set_global_assignment -name VHDL_FILE local/boot_message.vhd
+set_global_assignment -name VHDL_FILE local/EEprom.vhd
+set_global_assignment -name VHDL_FILE local/read_the_dips.vhd
+set_global_assignment -name VHDL_FILE local/slow_to_fast_clock.vhd
+set_global_assignment -name VHDL_FILE local/flipflops.vhd
+set_global_assignment -name QIP_FILE local/R5101.qip
+set_global_assignment -name VHDL_FILE local/pia6821.vhd
+set_global_assignment -name VHDL_FILE local/cpu68.vhd
+set_global_assignment -name VHDL_FILE WillFA7.vhd
+set_global_assignment -name QIP_FILE local/ram.qip
+set_global_assignment -name QIP_FILE local/rom_2K.qip
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

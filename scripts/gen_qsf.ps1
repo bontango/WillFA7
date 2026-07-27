@@ -51,7 +51,14 @@ function Read-Fragment([string]$Path) {
 
 $folders = Get-ChildItem $VarRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'variant.psd1') }
 if ($Variants) { $folders = $folders | Where-Object { $Variants -contains $_.Name } }
-if (-not $folders) { throw "no variants found below $VarRoot" }
+# The dormant sound variants carry their own top level and their own frozen copies of
+# the common modules, so they do not fit this model. Their .qsf stays hand maintained
+# and is marked Generated = $false. Never overwrite it from here.
+$folders = $folders | Where-Object {
+    $meta = Import-PowerShellDataFile (Join-Path $_.FullName 'variant.psd1')
+    -not ($meta.ContainsKey('Generated') -and -not $meta.Generated)
+}
+if (-not $folders) { throw "no generated variants found below $VarRoot" }
 
 $common = Read-Fragment (Join-Path $ScriptDir 'common_header.tcl')
 $fail   = $false

@@ -20,7 +20,7 @@ locations, the FPGA device and a few constants in `variants/<name>/variant_pkg.v
 | `cyclone_iv_v4` | 3.21 | EP4CE6E22C8 | 22.1std | active, **lead variant** |
 | `cyclone_10` | 4.21 | 10CL006YE144C8G | 22.1std | active |
 | `cyclone_iv_dev_open` | 5.21 | EP4CE6E22C8 | 22.1std | active, off-the-shelf dev board |
-| `s_cyclone_iv_v4` | 6.03 | EP4CE10E22C8 | 22.1std | dormant, with sound board |
+| `s_cyclone_iv_v4` | 6.03 | EP4CE10E22C8 | 22.1std | dormant, with sound board, builds |
 | `s_cyclone_10` | 7.14 | 10CL010YE144C6G | 22.1std | dormant, unfinished |
 
 The displayed version is `BOARD_ID.SW_SUB1 SW_SUB2`: the first digit identifies the
