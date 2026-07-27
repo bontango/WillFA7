@@ -150,6 +150,9 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+# Packages first - the analyser never has to guess the order.
+set_global_assignment -name VHDL_FILE variant_pkg.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/version_pkg.vhd
 set_global_assignment -name QIP_FILE ../../rtl/cyclone_iv/R5101.qip
 set_global_assignment -name VHDL_FILE ../../rtl/common/AM8T28.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/peak_filter.vhd

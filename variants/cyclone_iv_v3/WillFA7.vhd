@@ -37,6 +37,10 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+-- BOARD_ID: which board this build is for (variants/<name>/variant_pkg.vhd)
+-- SW_SUB1/SW_SUB2: common function level of all variants (rtl/common/version_pkg.vhd)
+use work.variant_pkg.all;
+use work.version_pkg.all;
 	
 entity WillFA7 is
 	port(		
@@ -280,10 +284,7 @@ signal sp_solenoid1_mpu_filtered	: std_logic;
 -- system type detection
 signal is_sys3 : std_logic; -- '1' for System3/4 (game_select 0-8)
 
--- SW version
-constant SW_MAIN : std_logic_vector(3 downto 0) := x"2";
-constant SW_SUB1 : std_logic_vector(3 downto 0) := x"2";
-constant SW_SUB2 : std_logic_vector(3 downto 0) := x"0";
+-- SW version comes from the two packages, see the use clauses at the top.
 
 begin
 
@@ -336,7 +337,7 @@ port map(
 	strobe	=> bm_disp_strobe,
 	bcd	=> bm_disp_bcd,
 	-- input (display data)
-	display1	=> ( x"F",x"F",x"F",SW_MAIN,SW_SUB1,SW_SUB2 ),
+	display1	=> ( x"F",x"F",x"F",BOARD_ID,SW_SUB1,SW_SUB2 ),
 	display2	=> ( x"F",x"F",x"F", x"0", g_dig1, g_dig0),
 	display3	=> ( x"0",x"5",x"0",x"9",x"6",x"3" ),
 	display4	=> ( x"F",x"F",x"F",x"F",b_dig1, b_dig0),

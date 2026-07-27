@@ -145,6 +145,9 @@ set_location_assignment PIN_87 -to W_PA_DIP[0]
 set_location_assignment PIN_76 -to W_PA_DIP[1]
 set_location_assignment PIN_79 -to W_PA_DIP[2]
 set_location_assignment PIN_86 -to W_PA_DIP[3]
+# Packages first - the analyser never has to guess the order.
+set_global_assignment -name VHDL_FILE variant_pkg.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/version_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/AM8T28.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/peak_filter.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/one_pulse_only.vhd
