@@ -1,44 +1,33 @@
-# Quartus build artifacts
+# --- Quartus build artefacts -------------------------------------------------
+# Every compile creates these below variants/<name>/.
 db/
 incremental_db/
+greybox_tmp/
+atom_netlists/
+output_files/
 simulation/
+*.qws
+*.qdf
+*.ipregen.rpt
+*.pin
+*.cdf
 
-# Backup files
+# --- Editor / OS / backup ----------------------------------------------------
 *.bak
 *\ -\ Kopie.*
-
-# Quartus workspace (user-specific)
-*.qws
-
-# Claude Code internal
+Thumbs.db
 .claude/
 
-# Output files - keep .sof and .pof but exclude reports
-output_files/*.rpt
-output_files/*.smsg
-output_files/*.summary
-output_files/*.asm.rpt
-output_files/*.eda.rpt
-output_files/*.fit.rpt
-output_files/*.flow.rpt
-output_files/*.map.rpt
-output_files/*.sta.rpt
-output_files/*.jdi
-output_files/*.sld
-output_files/greybox_tmp/
-
-# Quartus greybox temporary files (auto-generated during synthesis)
-greybox_tmp/
-
-# Not needed in repository
-output_files/output_files/
-archive/
-ROM/
+# --- Not part of the repository ----------------------------------------------
+# Game ROM images (copyrighted) and scanned manual pages. The text derived from
+# the scans lives in docs/switch_matrix/ and is checked in.
 roms/
-
-# Gescannte Handbuchseiten (Switchmatrix, Playfield) - nur lokal, nicht ins
-# oeffentliche Repo. Die Ableitungen daraus stehen als Text in docs/switch_matrix/.
+ROM/
 docs/*.png
 docs/*.jpg
 docs/*.jpeg
-Thumbs.db
+
+# NOTE: archive/ holds lib_archive (historic module versions) and IS tracked.
+# NOTE: rtl/common/cmos_256_0Fh.hex is a source file, not a game ROM.
+# NOTE: variants/*/willfa7.cof is the programming-file converter setup and is
+#       tracked, even though it used to live under output_files/.

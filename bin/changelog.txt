@@ -1,0 +1,47 @@
+-- v1.00 for HW v1.0 based on v024 for HW v0.5
+-- v1.01 with org cpu68 & flip flop v1.01
+-- v1.02 SYS3 setting support (together with ro SD v2 )
+-- v1.03 cpu68.vhd v081 ( daa did not set Zero-Flag which causd the offset bug), back to eeprom v091
+-- v1.04 eeprom 0.93, better saving in menue
+-- v1.05 first working sys7 version :-) together with cpu68.vhd v083
+-- v1.06 secured handling of special solenoids with flipflops v1.1
+-- v1.07 more secured handling of special solenoids with spec_sol_trig v0.3
+-- v1.08 prevent 'self activation' with flipper buttons of special solenoids
+-- v1.09 (v2.09 for Cyclone IV) added pulsetime adjustment for special solenoids
+-- v1.10 (v2.10 for Cyclone IV) deactivate sp_solenoid_mpu(1), as it pulses during game on, selftest on spec sol1 will not work
+-- v1.11 (v2.11 for Cyclone IV) small timing adjustments
+-- v1.12 (v2.12 for Cyclone IV) with memory protect and flipflop version 1.3 ( solves soundbug)
+-- v1.13 (v2.13 for Cyclone IV v3 & v3.13 for Cyclone IV v4) with eeprom v094 which has reduced clock to 100KHz (old 1MHz) solves 'nvram bug' with v3 FPGA
+-- v1.14 (v2.14 for Cyclone IV v3 & v3.14 for Cyclone IV v4) solenoid 17 with peak filter as we have 9uS peaks each 2mS on sp_solenoid_mpu(1);
+-------- added 4.14 for Cyclone 10
+-- v2.15 for Cyclone IV v3 & v3.15 for Cyclone IV v4 & 4.15 for Cyclone 10 -> fixed sys3/sys4 settings bug, optimized timing
+-- v1.16 Cyclone II only, option for game 'CONTACT' patch for special solenoid 6 (SOL 22)
+-- vx.17 eeprom write robustnes (new SD_card and eeprom.vhd ) DO NOT USE, SMALL Bug
+-- vx.18 switch matrix hardware debouncer (sw_debounce.vhd), per-switch mask, DIP5 selects debounce on/off
+-- vx.19 special solenoid debounce switchable via DIP4 (250us / 57us), plus META_SPECIAL1..6 synchronizers
+--        moved from clk_50 to cpu_clk (target domain of spec_sol_trigger)
+-- vx.20 switch debounce mask is now game dependent: one mask per game (0..31) in a 2kbit M9K rom,
+--        selected by the game number. Derived from switch matrix names plus a cross-check against the per-switch
+--        handler groups in each game rom. Alien Poker row is bit identical to v3.19 (hardware verified).
+--        All 32 games covered (Laser Ball from the original manual sheet). See docs/switch_masks.md
+--        plus FIX: LED_active is the blanking line (IC13 /OE + /RESET of the 273 latches) and is driven by
+--        'blanking' only again. Fixes the short blanking dropout ~6s after boot and on every EEprom save
+--        that appeared with x.17. See docs/blanking_led_active.md in 'WillFA7 - CycloneIV_v4'.
+--
+-- 07.2026 Etappe 1: .18/.19/.20 auf alle Nicht-Sound-Varianten portiert, alle bauen fehlerfrei
+--        (Quartus 22.1, Cyclone II mit 13.0sp1). In Hardware getestet ist bisher nur 3.20.
+--        Board-IDs neu und kollisionsfrei vergeben (erste Stelle der Versionsnummer):
+--          1 = Cyclone II          -> 1.20
+--          2 = Cyclone IV v3       -> 2.20
+--          3 = Cyclone IV v4       -> 3.20  (Leitvariante)
+--          4 = Cyclone 10          -> 4.20
+--          5 = CycloneIV dev_open  -> 5.20  (war 4.17 und kollidierte mit Cyclone 10)
+--          6 = WillFA7S Cyclone IV -> 6.03  (war 5.03; ruht, Funktionsstand unveraendert)
+--          7 = WillFA7S Cyclone 10 -> 7.14  (war 3.14; ruht, unfertig)
+--        Cyclone II zusaetzlich: SPECIAL1..6 haben jetzt 'i_Rst_L => reset_l' statt der festen '1'.
+--        Bisher wurde dort ein laufender Solenoid-Puls bei Reset nicht abgeworfen - alle anderen
+--        Varianten machen das seit langem so. Kostet 63 LE, der EP2C5 ist damit bei 95 %.
+--        Releases: Cyclone_II/WillFA7_v120.pof, Cyclone_IV/FPGA_board_v3.x/willfa7_v220.jic,
+--        Cyclone_IV/FPGA_board_v4.x/willfa7_v320.jic, cyclone_10/willfa7_v420.jic,
+--        dev_open/willfa7_v520.jic (neues Verzeichnis).
+--        NUR 3.20 IST IN HARDWARE GETESTET - 1.20, 2.20, 4.20 und 5.20 sind ungetestet.

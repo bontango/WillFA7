@@ -1,0 +1,13 @@
+# The whole project is CRLF - Quartus writes .qsf/.qpf/.qip that way and mixing
+# line endings makes every diff between variants unreadable. Normalise on commit,
+# check out CRLF everywhere.
+* text=auto eol=crlf
+
+# Binaries: never touch.
+*.pof   binary
+*.sof   binary
+*.jic   binary
+*.map   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
