@@ -103,4 +103,4 @@ Der eigentliche Störpfad liegt ausserhalb des FPGA. Unabhängig vom Firmware-Fi
 - **Kabelführung** zwischen Jet-Bumper-Kontakten und 2J10 — die Trigger-Leitungen laufen
   offenbar parallel zu den Solenoid-Leitungen.
 
-Schaltplan: `N:\Projekte\WillFA\target\v1.3\WillFA7_v1.3_00_SCH.PDF`
+Schaltplan: `N:\Projekte\WillFA7\target\v1.3\WillFA7_v1.3_00_SCH.PDF`

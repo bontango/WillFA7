@@ -6,6 +6,10 @@ Autor: Ralf Thelen (bontango), www.lisy.dev · Repo: github.com/bontango/WillFA7
 **Sieben Platinenvarianten, ein Sourcebaum, ein Top-Level.** Was pro Board unterschiedlich
 ist, steht in `variants/<name>/` – Pins, Device und drei Konstanten. Sonst nichts.
 
+Das Repo liegt unter `N:\Projekte\WillFA7\FPGA_source\` und endet dort. Eine Ebene höher,
+in `N:\Projekte\WillFA7\`, steht die `PROJECT.md` mit den Projekt-Metadaten; daneben die
+nicht versionierte Doku – Handbücher, Schaltpläne, Target3001, ROMs, SD-Images.
+
 ## Die wichtigsten Regeln
 
 - **`variants/<name>/WillFA7.qsf` ist generiert.** Nicht von Hand editieren. Änderungen gehören
@@ -230,5 +234,7 @@ Diese `Warning (10036)` sind bekannt und in Ordnung. Kommt eine andere dazu, ist
 
 `VARIANTEN.md` beschreibt Stand, bekannte Defekte und Hardware-Teststand jeder Variante.
 `PLAN_Zielstruktur.md` ist die Begründung für diese Struktur (Etappe 1 und 2 umgesetzt).
-Der alte Ordnerbaum liegt weiterhin unter `N:\Projekte\WillFA\FPGA_source\` als Fallback,
-zusammen mit `archive src\` (rund 630 MB historische Projektstände, bewusst nicht im Repo).
+Der alte Ordnerbaum liegt weiterhin unter `N:\Projekte\WillFA\FPGA_source\` als vorläufiges
+Backup, zusammen mit `archive src\` (rund 630 MB historische Projektstände, bewusst nicht im
+Repo). `N:\Projekte\WillFA` enthält seit 28.07.2026 nichts anderes mehr – die Doku ist nach
+`N:\Projekte\WillFA7\`, WillFA11 nach `N:\Projekte\WillFA11\` gezogen.

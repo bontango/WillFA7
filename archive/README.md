@@ -15,4 +15,5 @@ Notable entries:
 | `cmos.vhd`/`.qip`/`.cmp` | The pre-`R5101` name of the CMOS RAM megafunction. |
 
 Large historic project trees (the former `archive src\`, about 630 MB) are deliberately
-**not** in this repository. They stay in `N:\Projekte\WillFA\FPGA_source\archive src\`.
+**not** in this repository. They sit in `N:\Projekte\WillFA\FPGA_source\archive src\`, which
+is a temporary backup of the pre-monorepo tree and is meant to go away eventually.

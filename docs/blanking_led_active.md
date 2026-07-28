@@ -25,8 +25,8 @@ Das **Display bleibt dabei unberuehrt** — dessen Blanking laeuft ueber `LED_st
 (`LED_status <= not boot_phase(0); -- for display blanking`). Genau diese Kombination
 (Spulen/Lampen aus, Display stabil) ist die Signatur eines Blanking-Einbruchs.
 
-Quelle: `N:\Projekte\WillFA\doc\bugsv5.txt` ("Blanking ohne Treiber -> active LED!",
-"Blanking fuer displays? -> LED"), `N:\Projekte\WillFA\doc\Blanking_wire_v05_new.png`.
+Quelle: `N:\Projekte\WillFA7\doc\bugsv5.txt` ("Blanking ohne Treiber -> active LED!",
+"Blanking fuer displays? -> LED"), `N:\Projekte\WillFA7\doc\Blanking_wire_v05_new.png`.
 
 ## Wer treibt `blanking`
 

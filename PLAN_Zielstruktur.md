@@ -68,7 +68,8 @@ Board-ID-Ziffer angefasst.
 
 ### Etappe 2 – Umzug in die Zielstruktur — erledigt 27.07.2026
 
-Nach `N:\Projekte\WillFA7`, Historie von `WillFA7 - CycloneIV_v4` als Basis. In zwölf Schritten,
+Nach `N:\Projekte\WillFA7` (seit 28.07.2026 `N:\Projekte\WillFA7\FPGA_source`, damit die Doku
+daneben passt), Historie von `WillFA7 - CycloneIV_v4` als Basis. In zwölf Schritten,
 jeder einzeln mit `check.ps1 -Fit` gegen die Zahlen des Vorschritts abgesichert:
 
 | # | Inhalt | Ergebnis |
@@ -124,5 +125,6 @@ jeder einzeln mit `check.ps1 -Fit` gegen die Zahlen des Vorschritts abgesichert:
 - **`s_cyclone_10`**: unfertig, 0 Pin-Zuweisungen, `Error (10349)` auf `Audio_O`.
 - **`variants/cyclone_ii/WillFA7.sdc`** ist eine von Quartus 13 generierte Datei, kein
   handgeschriebener Constraint-Satz wie bei den anderen vier.
-- **Der alte Ordnerbaum** `N:\Projekte\WillFA\FPGA_source\` steht unverändert. Rückbau erst
+- **Der alte Ordnerbaum** `N:\Projekte\WillFA\FPGA_source\` steht unverändert als vorläufiges
+  Backup – er ist seit 28.07.2026 der einzige Inhalt von `N:\Projekte\WillFA`. Rückbau erst
   nach ausdrücklicher Freigabe und nach dem Hardwaretest.
