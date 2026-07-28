@@ -84,6 +84,9 @@ scripts\release.ps1 -Note "..."        # alles bauen, nach bin/ ablegen, changel
 
 `check.ps1` liefert Exit 1 bei Build-Fehler, Exit 2 bei Baseline-Abweichung.
 
+Der Arbeitsablauf drumherum – Quartus-IDE neben den Skripten, was die IDE nicht festlegen
+darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW.md`.
+
 ## Was pro Variante variiert
 
 `variants/<name>/variant_pkg.vhd`:
