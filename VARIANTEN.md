@@ -27,19 +27,32 @@ Funktionsstände: `.17` EEprom-Write-Robustness · `.18` Switch-Debouncer · `.1
 Spec-Sol-Debounce über DIP4 · `.20` Switch-Debounce-Maske spielabhängig + Fix `LED_active` =
 Blanking-Leitung · `.21` Monorepo (kein Funktionsunterschied zu `.20`, siehe Abschnitt 3).
 
-## 2. Ressourcen nach dem Umzug
+## 2. Ressourcen auf Funktionsstand `.21`
 
-| Variante | Logic Elements | Memory Bits | schlechtester Setup-Slack |
-|---|---|---|---|
-| `cyclone_ii` | 4.312 / 4.608 (**94 %**) | 94.208 / 119.808 | 4,392 ns |
-| `cyclone_iv_v3` | 5.022 / 6.272 (80 %) | 110.592 / 276.480 | 6,471 ns |
-| `cyclone_iv_v4` | 4.484 / 6.272 (71 %) | 110.592 / 276.480 | 6,725 ns |
-| `cyclone_10` | 4.473 / 6.272 (71 %) | 110.592 / 276.480 | 5,690 ns |
-| `cyclone_iv_dev_open` | 4.468 / 6.272 (71 %) | 110.592 / 276.480 | 6,209 ns |
+Gemessen 28.07.2026, `check.ps1 -Fit`:
+
+| Variante | Logic Elements | Memory Bits | schlechtester Setup-Slack | vorher (`.20`) |
+|---|---|---|---|---|
+| `cyclone_ii` | 4.313 / 4.608 (**94 %**) | 94.208 / 119.808 | 3,812 ns | 4.312 LE |
+| `cyclone_iv_v3` | 5.019 / 6.272 (80 %) | 110.592 / 276.480 | 6,171 ns | 5.022 LE |
+| `cyclone_iv_v4` | 4.469 / 6.272 (71 %) | 110.592 / 276.480 | 6,265 ns | 4.484 LE |
+| `cyclone_10` | 4.473 / 6.272 (71 %) | 110.592 / 276.480 | 6,791 ns | 4.473 LE |
+| `cyclone_iv_dev_open` | 4.469 / 6.272 (71 %) | 110.592 / 276.480 | 7,006 ns | 4.468 LE |
+| `s_cyclone_iv_v4` | 5.392 / 10.320 (52 %) | 273.408 / 423.936 | 3,600 ns | 5.392 LE |
 
 Referenz für `scripts/check.ps1 -Fit`, gespiegelt in `scripts/baseline.csv`. Alle Slacks positiv
 bei 20 ns Taktperiode. **Cyclone II ist mit 94 % die harte Randbedingung** – was dort nicht
 passt, passt nirgends.
+
+Die Differenz zu `.20` ist **eine Konstante**: `SW_SUB2` ging von `x"0"` auf `x"1"`, und die
+Ziffer geht in die Anzeigelogik. Bei `cyclone_iv_v4` sind das 15 LE, bei den anderen ±1 bis 3.
+Die Baseline war beim Release `.21` nicht nachgemessen worden; das ist mit diesen Zahlen
+nachgeholt. `s_cyclone_iv_v4` bleibt unverändert – sie steht auf `.03` und benutzt eigene
+`local/`-Module, die die Änderung nicht erreicht.
+
+Die Slack-Werte streuen zwischen zwei Läufen über identische Quellen um bis zu 1,1 ns – das
+ist Platzierungsrauschen, kein Signal. `check.ps1` toleriert deshalb 1,5 ns und schlägt
+zusätzlich unterhalb von 1,0 ns absolut an. Die LE-Zahlen streuen nicht.
 
 Quartus: Cyclone II braucht 13.0sp1 (`C:\altera\13.0sp1`), alle anderen 22.1std
 (`C:\intelFPGA_lite\22.1std`). Beide installiert, `quartus_sh` nicht im PATH – die Skripte

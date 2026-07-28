@@ -95,8 +95,10 @@ Bits und der Slack. `check.ps1 -Fit` vergleicht dagegen.
 - Nach einem Release, das die Zahlen bewusst verschiebt, gehört die Baseline neu gemessen –
   sonst schlägt sie bei jeder späteren Prüfung an und wird irgendwann ignoriert.
 
-**Stand:** `baseline.csv` hält noch die Zahlen von `.20`. Auf `.21` ist sie nicht
-nachgemessen, `cyclone_iv_v4` meldet deshalb `LE -15`.
+**Stand:** `baseline.csv` ist am 28.07.2026 auf Funktionsstand `.21` nachgemessen, für alle
+fünf aktiven Varianten plus `s_cyclone_iv_v4`. Die Zahlen stehen auch in `VARIANTEN.md`
+Abschnitt 2. `check.ps1` hat keine Option, die Baseline zu schreiben – die Datei wird von
+Hand gepflegt, damit niemand eine Abweichung wegdrücken kann, ohne sie erklärt zu haben.
 
 ## Git
 

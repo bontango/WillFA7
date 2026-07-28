@@ -1,7 +1,7 @@
 Variant;Device;LE;LEtotal;MemoryBits;Slack;Note
-cyclone_ii;EP2C5T144C8;4312;4608;94208;4.392;Quartus 13.0sp1. Was 4368 LE before the move - this board carried its own cpu68 v0.83 and now uses the shared v0.85.
-cyclone_iv_v3;EP4CE6F17C8;5022;6272;110592;6.471;Includes the serial monitor, which is worth about 550 LE.
-cyclone_iv_v4;EP4CE6E22C8;4484;6272;110592;6.725;Lead variant.
-cyclone_10;10CL006YE144C8G;4473;6272;110592;5.690;
-cyclone_iv_dev_open;EP4CE6E22C8;4468;6272;110592;6.209;
-s_cyclone_iv_v4;EP4CE10E22C8;5392;10320;273408;3.600;Dormant, function level .03. Builds again since the path fix, not hardware tested. Only checked with -All.
+cyclone_ii;EP2C5T144C8;4313;4608;94208;3.812;Quartus 13.0sp1. Measured on .21. Uses the shared cpu68 v0.85 since the monorepo - it carried its own v0.83 before, which was 4368 LE.
+cyclone_iv_v3;EP4CE6F17C8;5019;6272;110592;6.171;Measured on .21. Includes the serial monitor, which is worth about 550 LE.
+cyclone_iv_v4;EP4CE6E22C8;4469;6272;110592;6.265;Lead variant. Measured on .21.
+cyclone_10;10CL006YE144C8G;4473;6272;110592;6.791;Measured on .21. Unchanged from the .20 figure.
+cyclone_iv_dev_open;EP4CE6E22C8;4469;6272;110592;7.006;Measured on .21.
+s_cyclone_iv_v4;EP4CE10E22C8;5392;10320;273408;3.600;Dormant, function level .03 with its own local/ modules, so the .21 change does not reach it - figures unchanged. Only checked with -All.
