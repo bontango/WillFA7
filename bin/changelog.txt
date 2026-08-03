@@ -81,3 +81,110 @@
 --        The Error (10349) that was recorded for it was only a consequence of two source
 --        files missing from the project. It is still on function level .03 and untested.
 --        7.14 (s_cyclone_10) still does not build and has no pin assignments at all.
+-- vx.22 08.2026 the sound board variant joins the shared source tree.
+--        This is a real function step, unlike x.21. Four things changed, and the third
+--        one affects a board that is already out in the field.
+--
+--        1) s_cyclone_iv_v4 (WillFA7S) went from function level .03 to .22.
+--           It used to be a fork: its own WillFA7.vhd and its own frozen copies of
+--           cpu68, EEprom, spec_sol_trigger and friends under local/. It now builds from
+--           top/WillFA7.vhd like every other board; what the sound board changes hangs on
+--           the new constant HAS_SOUND in variant_pkg.vhd. In one step it gains:
+--             - cpu68 v0.85 (DAA fixes, rewritten NMI handler) - for BOTH CPUs, because
+--               the sound board core WISOF instantiates the shared cpu68 as well
+--             - the EEprom clean room rebuild of .17
+--             - special solenoid debounce via DIP4 (.19)
+--             - the switch matrix debouncer with per game masks (.18/.20)
+--             - System 3/4 support via AM8T28, memory protect following the game number
+--             - cpu_clk_gen with the glitch safe mem_clk, and the shared .sdc
+--             - the CONTACT option on DIP6
+--           Sound source SYS3 vs SYS7 now follows the game number (is_sys3) instead of the
+--           sound board DIP sb_option(3), which is reserved from now on.
+--           Everything the sound board does differently is written up in
+--           docs/soundcard_variant.md. The 6.03 state is kept in
+--           archive/s_cyclone_iv_v4_603/.
+--
+--        2) ONE SD_Card.vhd for all boards. The sound variant carried a fork that was
+--           still on the pre-.17 code - no watchdogs, no R1 priority search, no error
+--           blink codes. It is folded back in via three generics (Slot_Sectors, Check_CRC,
+--           CRC_Bytes), so the WillFA7S inherits the Stage A robustness. New error blink
+--           code 7 = CRC mismatch. address_sd_card is 16 bit wide now instead of 14,
+--           which the other boards pay for with a handful of logic elements.
+--
+--        3) VIRTUAL_PIN DOES NOT WORK ON CYCLONE II - and it never did.
+--           Quartus II 13.0sp1 Web Edition accepts the assignment and ignores it:
+--             Warning (292013): Feature Virtual IO is only available with a valid
+--             subscription license.
+--           'Total virtual pins: 0' in the fitter report. In the released 1.21 the four
+--           optional ports were therefore placed on real pins of the EP2C5, picked by the
+--           fitter, three of them driven outputs at 24 mA:
+--             LED_debug -> PIN_26 (driven by reset_sw)
+--             debug     -> PIN_27 (driven low)
+--             USB_Rx    -> PIN_73 (driven high)
+--             USB_Tx    -> PIN_80 (input)
+--           86 of 89 pins were in use. With the four sound board ports on top the design
+--           did not fit at all any more. Cyclone II now builds through the board shell
+--           top/WillFA7_cii.vhd, which declares only the 82 ports the board really has;
+--           the optional ones become internal signals and disappear. 86 -> 82 pins, same
+--           logic element count. WHOEVER OWNS A CYCLONE II BOARD SHOULD CHECK WHAT
+--           PIN_26, PIN_27 AND PIN_73 ARE CONNECTED TO.
+--
+--        4) THE SOUND BOARD CORE IS ON WISOF 0.9 NOW - it used to be 0.8.
+--           The core comes from the standalone project 'FPGA Soundboard Williams\WISOF',
+--           which has been through a schematic and VHDL review since. Its four audible
+--           findings were confirmed on hardware there, and the WillFA7S had none of them:
+--             F1  hc55564.vhd: the two filter constants were written (1 - 1/8)*256 and
+--                 (1 - 1/256)*256. Integer division - both evaluated to 256 instead of
+--                 224 and 255, so NEITHER the integrator NOR the syllabic filter ever
+--                 decayed. The step size climbed to its maximum and stayed there: the
+--                 decoder put out a square wave at the CVSD bit rate, not speech.
+--             F3  the CVSD integrator was unsigned, so its rest position was the bottom
+--                 of the range and every downward excursion was forced to zero - half
+--                 wave rectified. It is signed and saturating now, with a reset.
+--             F2  the sound board RAM write enable was not decoded: EVERY write of the
+--                 sound CPU also landed in the 128 byte RAM. Writing the PIA registers at
+--                 0x0400..0x0403 overwrote RAM 0x00..0x03, and RAM 0x00 with the current
+--                 DAC value on every single sample. A plausible reason for 'works for
+--                 some games, not for others'.
+--             F4/F5 sound and speech are summed now and share ONE 10 bit delta sigma DAC
+--                 on clk_50 (48.8 kHz), the way the original mixes them through R8 on the
+--                 speech module. The old speech DAC was 16 bit on clk_50, which is
+--                 50MHz/65536 = 763 Hz effective sample rate. On the WillFA7S only
+--                 SB_Sound goes to the amplifier, so without the mixer speech could not
+--                 be heard at all. SB_Speech stays pinned but idle.
+--             F10 PIA CA1 tied high, as R33 does on the original.
+--           Not applicable here: F6, the sixth sound select line. There is none to
+--           connect - the Williams sound/comma latch carries five. World Cup, Contact,
+--           Disco Fever, Phoenix and Warlok stay unsupported in that respect.
+--           Two findings outside the sound board, both 0 logic elements, all boards:
+--           the never read signal SS_R is gone from SD_Card.vhd (F12) and the two counter
+--           limits in one_pulse_only.vhd are named constants now (F11).
+--           Full write up: docs/soundcard_variant.md, section 14.
+--
+--        Resources on .22 (logic elements / memory bits / worst setup slack):
+--          1.22 Cyclone II    4322 / 4608    94208  3.434 ns   82 of 89 pins
+--          2.22 Cyclone IV v3 5033 / 6272   110592  6.215 ns
+--          3.22 Cyclone IV v4 4476 / 6272   110592  6.025 ns
+--          4.22 Cyclone 10    4488 / 6272   110592  6.264 ns
+--          5.22 dev_open      4477 / 6272   110592  6.809 ns
+--          6.22 WillFA7S      6303 / 10320  275456  5.772 ns  (after the sb_option fix below)
+--        The sound blocks cost the five boards without a sound card nothing: the step that
+--        moved them into the shared top level went through with exactly unchanged numbers,
+--        and not a single sound node appears in their hierarchy.
+--
+--        THE WillFA7S NEEDS ITS OWN SD CARD FORMAT: 64 KByte per game instead of 12, with
+--        a CRC16-CCITT in the last two bytes of the slot. A standard card does not boot
+--        there, and that card does not boot on a standard board.
+--
+--        NOT TESTED IN HARDWARE - not on any board. The last hardware tested build is
+--        still 3.20. What to check per board is listed in VARIANTEN.md section 5.
+--
+--        FIX in .22, WillFA7S only, found while checking the manual: with the sound board
+--        DIPs read into an ascending sb_option(1 to 4), the whole array association
+--        SB_Opt => sb_option matched WISOF's SB_Opt(4 downto 1) BY POSITION and mirrored
+--        the four switches - chimes ended up on S5-Dip4, speech on Dip3. Quartus does not
+--        warn about this. The four bits are associated element by element now. Same cause,
+--        cosmetic only: the status display weighted Dip1 with 8; it counts Dip1 = 1 again,
+--        the way S1 and S2 always did. The user manual said Dip1 = 32 for the game options
+--        S2 - that was simply wrong and is corrected too. See docs/soundcard_variant.md,
+--        section 3.

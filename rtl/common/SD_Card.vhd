@@ -21,6 +21,19 @@
 --     token (0000 xxxx, low nibble != 0) detected during sector polling
 --     instead of waiting for the FE-token watchdog. New error code 6 = data
 --     error token. R1_response_2 obsolete and removed.
+-- v11 the WillFA7S fork folded back in. That board reads a different card layout
+--     and checks a CRC, which is now three more generics instead of a second copy
+--     of this file:
+--       Slot_Sectors  how many sectors are reserved per game on the card
+--                     (24 = 12 KByte standard, 128 = 64 KByte WillFA7S)
+--       Check_CRC     read on to the end of the slot, take the last two bytes as
+--                     the expected CRC16-CCITT and compare. New error code 7.
+--       CRC_Bytes     how much of the slot the CRC covers (32 KByte on WillFA7S)
+--     address_sd_card is 16 bit wide now instead of 14 - a 64 KByte slot needs it,
+--     and with Read_Bytes = 12288 the top two bits simply never go high.
+--     The fork was still on the v07 code and therefore had none of the Stage A
+--     robustness; that is what this merge is really about. See
+--     docs/soundcard_variant.md.
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -30,16 +43,29 @@ use IEEE.numeric_std.all;
 
 	entity SD_Card is
 		generic (
-			-- Number of bytes to read from SD card (must be a multiple of 512).
-			-- Default 12288 = 12 KByte = 24 sectors, matches the legacy behaviour.
-			-- The address bus address_sd_card is 14 bit wide, so the practical
-			-- upper limit without further changes is 16384 bytes.
-			Read_Bytes : integer := 12288
+			-- Number of payload bytes, i.e. how far the ROM blocks are filled.
+			-- Default 12288 = 12 KByte, matches the legacy behaviour. Must be a
+			-- multiple of 512.
+			Read_Bytes : integer := 12288;
+
+			-- How many sectors are reserved per game on the card. This is NOT the same
+			-- as Read_Bytes/512: the WillFA7S layout reserves a 64 KByte slot (128
+			-- sectors) and only fills the first 32 KByte of it.
+			--   24 = 12 KByte slot, standard boards
+			--  128 = 64 KByte slot, WillFA7S
+			-- Getting this wrong does not break the build, it makes every game but the
+			-- first read from the wrong place on the card.
+			Slot_Sectors : integer := 24;
+
+			-- Read on to the end of the slot, take the last two bytes as the expected
+			-- CRC16-CCITT over the first CRC_Bytes bytes and compare. Error code 7.
+			Check_CRC : boolean := false;
+			CRC_Bytes : integer := 32768
 		);
 		port(
 		i_Clk		: IN STD_LOGIC  := '1';
 		-- Control/Data Signals,
-		i_Rst_L : in std_logic;     -- FPGA Reset		
+		i_Rst_L : in std_logic;     -- FPGA Reset
 		-- PMOD SPI Interface
 		o_SPI_Clk  : out std_logic;
 		i_SPI_MISO : in std_logic;
@@ -48,21 +74,37 @@ use IEEE.numeric_std.all;
 		-- selektion
 		selection : in std_logic_vector(7 downto 0);
 		-- sd card
-		address_sd_card	: buffer  std_logic_vector(13 downto 0);
-		data_sd_card	: out std_logic_vector(7 downto 0);
-		wr_rom :  out std_logic;		
+		address_sd_card	: buffer  std_logic_vector(15 downto 0);
+		-- buffer, not out: the CRC generate below has to read them back
+		data_sd_card	: buffer std_logic_vector(7 downto 0);
+		wr_rom :  buffer std_logic;
 		-- start CPU
 		cpu_reset_l : out STD_LOGIC;
 		-- feedback
-		SDcard_error : out STD_LOGIC
+		SDcard_error : out STD_LOGIC;
+		-- CRC check, only meaningful with Check_CRC. Constant otherwise, so a variant
+		-- that does not use it pays nothing for the ports.
+		calc_checksum	: out std_logic_vector(15 downto 0); -- computed while reading
+		read_checksum	: buffer std_logic_vector(15 downto 0); -- last two bytes of the slot
+		crc_error : out STD_LOGIC
 		);
     end SD_Card;
 	 
    architecture Behavioral of SD_Card is		
-		type STATE_T is ( Startdelay, send_read_request, wait_for_read, continue, 
+		type STATE_T is ( Startdelay, send_read_request, wait_for_read, continue,
 								initiate_read_sector, wait_for_begin_of_data,check_for_FE_flag, sector_read, wait_for_byte_read,
-								check_sector_byte, inc_addr_and_unset_wr, stop_read, delay_and_repeat, all_done, error, stop );
-		signal state_A : STATE_T;       
+								check_sector_byte, inc_addr_and_unset_wr, stop_read, delay_and_repeat, verify_crc, all_done, error, stop );
+		signal state_A : STATE_T;
+
+		-- Last byte address inside a slot. Without Check_CRC the read stops at
+		-- Read_Bytes - 1 and this is unused; with it the read runs to the end of the
+		-- slot because the expected CRC sits in the last two bytes.
+		constant SLOT_END : integer := Slot_Sectors * 512 - 1;
+
+		-- CRC16-CCITT over the first CRC_Bytes payload bytes. Driven by the
+		-- crc16_ccitt instance below when Check_CRC, constant zero otherwise.
+		signal crc_calc  : std_logic_vector(15 downto 0);
+		signal crc_en    : std_logic;
 		
 		
 		-- SPI stuff for SD card commands	
@@ -80,7 +122,10 @@ use IEEE.numeric_std.all;
 		signal TX_Start_R : std_LOGIC;
 		signal TX_Done_R : std_LOGIC;
 		signal MOSI_R : std_LOGIC;
-		signal SS_R :  std_LOGIC;
+		-- WISOF 0.9, finding F12: the chip select of this master used to be captured in a
+		-- signal SS_R that nothing ever read ( Quartus warning 10036 ). Ignoring it is
+		-- intentional - o_SPI_CS_n is forced low while this master is active, so the card
+		-- stays selected for the whole sector transfer. The port is left open now instead.
 		signal SPI_Clk_R :  std_LOGIC;
 		
 		-----		
@@ -108,6 +153,7 @@ use IEEE.numeric_std.all;
 		--   4 = ACMD41 init timeout (card never left idle)
 		--   5 = Sector data token timeout (no 0xFE within 500 ms)
 		--   6 = Data error token received (card aborted the sector read)
+		--   7 = CRC mismatch (only with Check_CRC; the game data on the card is wrong)
 		signal wd_count        : integer range 0 to 100000000; -- general watchdog (~2 s headroom @ 50 MHz)
 		signal err_code        : integer range 0 to 15;
 		signal blink_remaining : integer range 0 to 15;
@@ -158,13 +204,43 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
            MOSI     => MOSI_R,
            MISO     => i_SPI_MISO,
            SCLK     => SPI_Clk_R,
-           SS       => SS_R,
+           SS       => open,   -- see the comment at the signal declarations above
            TX_Start => TX_Start_R,
            TX_Done  => TX_Done_R,
            clk      => i_Clk,
 			  do_not_disable_SS => do_not_disable_SS,
 			  do_not_enable_SS => do_not_enable_SS
       );
+
+----------------------------------------------------------------------------
+-- CRC16-CCITT over the payload (option Check_CRC, WillFA7S only)
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+----------------------------------------------------------------------------
+GEN_CRC: if Check_CRC generate
+	-- Every payload byte below CRC_Bytes feeds the LFSR. Above that the slot is
+	-- padding plus the two checksum bytes, which must not count themselves.
+	crc_en <= wr_rom when unsigned(address_sd_card) < to_unsigned(CRC_Bytes, address_sd_card'length)
+	          else '0';
+
+	CRC16_rom: entity work.crc16_ccitt
+	port map(
+		data_in => data_sd_card,
+		crc_en  => crc_en,
+		rst     => i_Rst_L,
+		clk     => i_Clk,
+		crc_out => crc_calc
+		);
+end generate;
+
+GEN_NO_CRC: if not Check_CRC generate
+	-- crc_en stays undriven on purpose: nothing reads it here, so giving it a value
+	-- would only add a 'never read' warning to an otherwise curated list.
+	crc_calc <= (others => '0');
+end generate;
+
+calc_checksum <= crc_calc;
 
 		
 		SD_Card: process (i_Clk, i_Rst_L )
@@ -203,6 +279,8 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
 				R1_pos <= 7;
 				R1_response <= x"FF";
 				Echo_response <= x"00";
+				read_checksum <= (others => '0');
+				crc_error <= '0';
 				state_A <= Startdelay;
 			else			
 				case state_A is
@@ -230,8 +308,8 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
 									 -- special: calculate sector on WillFA SD
 									 -- where to read rom depending on dip switch
 									 -- first rom starts at sector 660
-									 -- per game: Read_Bytes/512 sectors (default 12 KB = 24 sectors)
-									 TX_Data_A(79 downto 64)  <= std_logic_vector (unsigned(selection) * (Read_Bytes/512) + 660);
+									 -- per game: Slot_Sectors sectors (24 = 12 KB standard, 128 = 64 KB WillFA7S)
+									 TX_Data_A(79 downto 64)  <= std_logic_vector (unsigned(selection) * Slot_Sectors + 660);
 						when 8 => TX_Data_A <= x"FF" & CMD12 & x"FFFFFFFFFFFFFF";	
 									 do_not_disable_SS <= '0';	
 						when others => TX_Data_A <= x"FF" & x"FFFFFFFFFFFF" & x"FFFFFFFFFFFFFF"; --  read
@@ -353,7 +431,11 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
 										state_A <= initiate_read_sector;
 									when 8 => -- we send CMD12 to stop read sector, all done
 										wr_rom <= '0';
-										state_A <= all_done;
+										if Check_CRC then
+											state_A <= verify_crc;
+										else
+											state_A <= all_done;
+										end if;
 
 									when others =>
 										state_A <= send_read_request; -- next cmd to send
@@ -453,11 +535,28 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
 								wr_rom <= '0';
 								-- prepare address for next
 								address_sd_card <= std_LOGIC_VECTOR(unsigned(address_sd_card) +1);
-								-- finished? (last written address = Read_Bytes - 1)
-								if unsigned(address_sd_card) = to_unsigned(Read_Bytes - 1, address_sd_card'length) then
+
+								if Check_CRC then
+									-- Read the WHOLE slot, not just the payload: the expected checksum
+									-- lives in its last two bytes. Everything above CRC_Bytes is padding
+									-- that no wr_rom decode in the top level matches, so it is read and
+									-- dropped.
+									if unsigned(address_sd_card) = to_unsigned(SLOT_END - 1, address_sd_card'length) then
+										read_checksum(15 downto 8) <= data_sd_card;
+									end if;
+									if unsigned(address_sd_card) = to_unsigned(SLOT_END, address_sd_card'length) then
+										read_checksum(7 downto 0) <= data_sd_card;
 										state_A <= stop_read;		--just read last byte
-								else
+									else
 										state_A <= sector_read;		-- next byte
+									end if;
+								else
+									-- finished? (last written address = Read_Bytes - 1)
+									if unsigned(address_sd_card) = to_unsigned(Read_Bytes - 1, address_sd_card'length) then
+											state_A <= stop_read;		--just read last byte
+									else
+											state_A <= sector_read;		-- next byte
+									end if;
 								end if;
 												
 				when stop_read =>																
@@ -465,7 +564,22 @@ SD_CARD_READ: entity work.SPI_Master --read i byte by byte (slooow)
 								active_master <= "01"; --because sending of a command								
 								state_A <= send_read_request; 
 								
-				when all_done =>		
+				when verify_crc =>
+					-- Only reached with Check_CRC. The CPU is not released on a mismatch:
+					-- the game data on the card is wrong, running it would be worse than
+					-- showing the error. The two checksums are on the boot display,
+					-- see docs/soundcard_variant.md.
+					if crc_calc /= read_checksum then
+						crc_error <= '1';
+						err_code <= 7;
+						blink_remaining <= 7;
+						counter <= 0;
+						state_A <= error;
+					else
+						state_A <= all_done;
+					end if;
+
+				when all_done =>
 					-- wait a bit, then start cpu
 					if ( counter < 25000000 ) then
 						counter <= counter +1;					

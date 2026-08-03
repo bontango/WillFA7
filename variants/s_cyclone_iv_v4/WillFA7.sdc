@@ -24,6 +24,29 @@
     
 	derive_pll_clocks -create_base_clocks
    derive_clock_uncertainty
+
+	# cpu_clk: PLL c0 (14.28 MHz) divided by 16 -> ~894 KHz
+	create_generated_clock -name cpu_clk \
+		-source [get_pins {PLL|altpll_component|auto_generated|pll1|clk[0]}] \
+		-divide_by 16 \
+		[get_registers {cpu_clk_gen:clock_gen|clk_out}]
+
+	# mem_clk: phase-shifted cpu_clk, same divide from PLL c0
+	create_generated_clock -name mem_clk \
+		-source [get_pins {PLL|altpll_component|auto_generated|pll1|clk[0]}] \
+		-divide_by 16 \
+		[get_registers {cpu_clk_gen:clock_gen|shift_clk_out}]
+
+	# flipflop clk_div2: cpu_clk divided by 2
+	create_generated_clock -name ff_sols_clk_div2 \
+		-source [get_registers {cpu_clk_gen:clock_gen|clk_out}] \
+		-divide_by 2 \
+		[get_registers {flipflops:FF_SOLS|clk_div2}]
+
+	create_generated_clock -name ff_lamps_clk_div2 \
+		-source [get_registers {cpu_clk_gen:clock_gen|clk_out}] \
+		-divide_by 2 \
+		[get_registers {flipflops:FF_LAMPSS|clk_div2}]
 	
 	#
 	# example second clock
@@ -35,6 +58,26 @@
 	# -source = original clock, then end of line is the target signal where output clock is.
 	#
 	
+	# Cross-clock domain: clk_50 and cpu_clk/mem_clk are asynchronous.
+	# Domain crossings are handled by Cross_Slow_To_Fast_Clock synchronizers.
+	set_clock_groups -asynchronous \
+		-group {clk_50} \
+		-group {cpu_clk mem_clk ff_sols_clk_div2 ff_lamps_clk_div2}
+
 	# Constrain IOs (don't care...)
 	set_input_delay -clock clk_50 0 [all_inputs]
 	set_output_delay -clock clk_50 0 [all_outputs]
+
+	# THE ONLY DIFFERENCE TO variants/cyclone_iv_v4/WillFA7.sdc - everything above
+	# is byte identical to it.
+	#
+	# SB_Sound is the delta sigma audio output of the integrated sound board, SB_Speech
+	# is pinned but idle since .22 ( sound and speech are mixed inside the sound board,
+	# see docs/soundcard_variant.md ). They drive an RC low pass on the board, not a
+	# clocked receiver, so there is no setup or hold requirement on them at all, and the
+	# blanket 'set_output_delay -clock clk_50 0 [all_outputs]' above does not describe
+	# anything real. Up to .22 that constraint also produced a bogus violation of about
+	# -3.4 ns, because the sound DAC ran on the 14.28 MHz PLL output back then; the mixed
+	# DAC runs on clk_50 now, but the constraint is still meaningless either way.
+	set_false_path -to [get_ports {SB_Sound}]
+	set_false_path -to [get_ports {SB_Speech}]

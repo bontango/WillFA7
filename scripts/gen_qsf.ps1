@@ -80,6 +80,12 @@ foreach ($dir in $folders) {
     $out.Add('# ---------------------------------------------------------------------------')
     $out.Add('')
     $out.Add('# --- board -----------------------------------------------------------------')
+    # Which entity is the top level. Only cyclone_ii differs: Quartus 13.0sp1 Web
+    # Edition ignores VIRTUAL_PIN, so that board uses the shell top/WillFA7_cii.vhd,
+    # which does not declare the optional ports at all. See that file for the details.
+    $topEntity = 'WillFA7'
+    if ($meta.TopEntity) { $topEntity = $meta.TopEntity }
+    $out.Add("set_global_assignment -name TOP_LEVEL_ENTITY $topEntity")
     Read-Fragment (Join-Path $dir.FullName 'device.tcl') | ForEach-Object { $out.Add($_) }
     $out.Add('')
     $out.Add('# --- shared globals --------------------------------------------------------')

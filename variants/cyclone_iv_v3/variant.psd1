@@ -7,6 +7,7 @@
     BinFolder   = 'Cyclone_IV\FPGA_board_v3.x'
     ReleaseArtifact = 'jic'
     Dormant     = $false
-    VirtualPins = @('LED_debug')
+    VirtualPins = @('LED_debug',
+                    'SB_Sound', 'SB_Speech', 'SB_Test', 'Dip_Ret_4')
     Notes       = 'The serial monitor costs about 550 logic elements.'
 }

@@ -17,4 +17,10 @@ package variant_pkg is
 	-- USB monitor API (rtl/serial_api). Costs about 550 logic elements, so it has
 	-- to generate away rather than be optimised away - the EP2C5 has no room for it.
 	constant HAS_MONITOR : boolean := false;
+
+	-- Integrated sound board (rtl/sound). Only the WillFA7S boards have one. Pulls in
+	-- the WISOF core with its own 6802, five 4 KByte ROM blocks, the CVSD speech
+	-- decoder, the sound test and a 4x4 DIP matrix, and switches the SD card reader to
+	-- 64 KByte slots with a CRC16. See docs/soundcard_variant.md.
+	constant HAS_SOUND : boolean := false;
 end package;

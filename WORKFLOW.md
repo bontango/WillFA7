@@ -91,12 +91,16 @@ Bits und der Slack. `check.ps1 -Fit` vergleicht dagegen.
 - **Slack schwankt.** Zwei Läufe über byte-identische Quellen ergaben 5.690 und 6.791 ns;
   die Toleranz steht deshalb bei 1.5 ns, zusätzlich gibt es einen absoluten Boden von 1.0 ns.
 - **LE schwanken nicht.** Eine Abweichung dort hat immer eine Ursache. Schon eine geänderte
-  Konstante zählt: `SW_SUB2` von `x"0"` auf `x"1"` (Release `.21`) ist 15 LE wert.
+  Konstante zählt: `SW_SUB2` von `x"0"` auf `x"1"` (Release `.21`) war 15 LE wert, von `x"1"`
+  auf `x"2"` (Release `.22`) 7 LE.
+- **Ein zusätzlicher Top-Level-Port kostet auch dann LE, wenn dahinter keine Logik steht.**
+  Die vier Sound-Ports aus `.22` haben je nach Variante zwischen -13 und +19 LE bewegt, reine
+  Umpackung - aber reproduzierbar, zweimal dieselben Zahlen.
 - Nach einem Release, das die Zahlen bewusst verschiebt, gehört die Baseline neu gemessen –
   sonst schlägt sie bei jeder späteren Prüfung an und wird irgendwann ignoriert.
 
-**Stand:** `baseline.csv` ist am 28.07.2026 auf Funktionsstand `.21` nachgemessen, für alle
-fünf aktiven Varianten plus `s_cyclone_iv_v4`. Die Zahlen stehen auch in `VARIANTEN.md`
+**Stand:** `baseline.csv` ist am 02.08.2026 auf Funktionsstand `.22` nachgemessen, für alle
+sechs aktiven Varianten. Die Zahlen stehen auch in `VARIANTEN.md`
 Abschnitt 2. `check.ps1` hat keine Option, die Baseline zu schreiben – die Datei wird von
 Hand gepflegt, damit niemand eine Abweichung wegdrücken kann, ohne sie erklärt zu haben.
 

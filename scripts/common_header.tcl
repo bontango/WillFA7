@@ -1,6 +1,9 @@
 # common_header.tcl - global assignments that are identical in all WillFA7
 # variants. Merged into every generated WillFA7.qsf by scripts\gen_qsf.ps1.
-set_global_assignment -name TOP_LEVEL_ENTITY WillFA7
+#
+# TOP_LEVEL_ENTITY is NOT here: cyclone_ii needs the board shell WillFA7_cii instead
+# of WillFA7 (see top/WillFA7_cii.vhd). It comes from the TopEntity key in
+# variants/<name>/variant.psd1, default WillFA7.
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "17:48:15  NOVEMBER 29, 2022"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files

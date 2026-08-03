@@ -7,7 +7,8 @@
     BinFolder   = 'dev_open'
     ReleaseArtifact = 'jic'
     Dormant     = $false
-    VirtualPins = @('USB_Tx', 'USB_Rx', 'debug')   # LED_debug exists on this board
+    VirtualPins = @('USB_Tx', 'USB_Rx', 'debug',   # LED_debug exists on this board
+                    'SB_Sound', 'SB_Speech', 'SB_Test', 'Dip_Ret_4')
     # Board wiring worth keeping, it used to be a comment in this variant's own copy of
     # the top level: the four dev board LEDs are D5 = LED_SD_Error (IO98),
     # D4 = LED_active (IO99), D3 = LED_status (IO100), D2 = LED_debug (IO101); reset is

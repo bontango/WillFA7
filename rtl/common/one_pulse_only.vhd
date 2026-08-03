@@ -16,9 +16,13 @@ USE ieee.std_logic_1164.all;
     end one_pulse_only;
     ---------------------------------------------------
     architecture Behavioral of one_pulse_only is
-		type STATE_T is ( Idle, Pulse, Do_Wait); 
-		signal state_A : STATE_T;       
-		signal count : integer range 0 to 100000 := 0;
+		type STATE_T is ( Idle, Pulse, Do_Wait);
+		signal state_A : STATE_T;
+		-- WISOF 0.9, finding F11: the two limits used to be bare numbers, which read as if
+		-- they were dimensioned for the 50MHz clock. At cpu_clk = 894kHz they mean this:
+		constant c_pulse_len : integer := 40;     -- 45us, the NMI needs at least 2 CPU cycles
+		constant c_lockout   : integer := 100000; -- 112ms debounce of the push button
+		signal count : integer range 0 to c_lockout := 0;
 	begin
 	
 	 one_pulse_only: process (clk_in, rst)
@@ -36,7 +40,7 @@ USE ieee.std_logic_1164.all;
 					end if;	
 				
 				when Pulse =>						
-						if count < 40 then
+						if count < c_pulse_len then
 							count <= count +1;
 						else
 							count <= 0;
@@ -45,7 +49,7 @@ USE ieee.std_logic_1164.all;
 						end if;	
 				
 				when Do_Wait =>
-						if count < 100000 then
+						if count < c_lockout then
 							count <= count +1;
 						else
 							count <= 0;

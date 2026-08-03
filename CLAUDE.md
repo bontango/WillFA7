@@ -4,7 +4,8 @@ Williams-System-3-bis-7-MPU-Ersatz auf Altera-FPGA. VHDL, Quartus.
 Autor: Ralf Thelen (bontango), www.lisy.dev · Repo: github.com/bontango/WillFA7
 
 **Sieben Platinenvarianten, ein Sourcebaum, ein Top-Level.** Was pro Board unterschiedlich
-ist, steht in `variants/<name>/` – Pins, Device und drei Konstanten. Sonst nichts.
+ist, steht in `variants/<name>/` – Pins, Device und vier Konstanten. Sonst nichts.
+Eine Ausnahme mit Grund: `cyclone_ii` baut über die Hülle `top/WillFA7_cii.vhd`, siehe unten.
 
 Das Repo liegt unter `N:\Projekte\WillFA7\FPGA_source\` und endet dort. Eine Ebene höher,
 in `N:\Projekte\WillFA7\`, steht die `PROJECT.md` mit den Projekt-Metadaten; daneben die
@@ -19,6 +20,14 @@ nicht versionierte Doku – Handbücher, Schaltpläne, Target3001, ROMs, SD-Imag
   würden mehrdeutig.
 - **Nach jeder Änderung an `rtl/common/` oder `top/`: `scripts\check.ps1 -Fit`.** Das vergleicht
   LE/Memory/Slack gegen `scripts\baseline.csv`. Eine unerklärte Abweichung ist ein Befund.
+- **Ganze Vektoren werden im Port Map positionsweise verbunden, nicht nach Indexnamen.**
+  Hängt ein `(1 to 4)`-Signal an einem `(4 downto 1)`-Port, sind die Bits gespiegelt – und
+  Quartus sagt dazu **nichts**. Genau so lagen die Soundkarten-DIPs an `WISOF.SB_Opt`
+  (Chimes auf Dip4 statt Dip1). Deshalb: bei jeder Portverbindung eines Vektors die Richtung
+  beider Seiten vergleichen; stimmen sie nicht überein, die Bits einzeln zuordnen. Im
+  Top-Level laufen `game_option` (`6 downto 1`) gegen `read_the_dips`/`read_the_dips_s`
+  (`1 to 6`) – dort ist die Spiegelung gewollt und hardwareverifiziert, `game_option(n)` ist
+  DIP *n*. Nicht „geradeziehen".
 - **Cyclone II ist die harte Randbedingung** (4312 / 4608 LE = 94 %). Was dort nicht passt,
   passt nirgends. Optionale Blöcke müssen per `if ... generate` **weggenerieren** – nicht darauf
   hoffen, dass Quartus sie wegoptimiert.
@@ -37,14 +46,18 @@ rtl/common/      die Module, die jede Variante benutzt, plus version_pkg.vhd
 rtl/cyclone_ii/  rtl/cyclone_iv/  rtl/cyclone_10/
                  Megafunctions je Familie, ueberall gleiche Entity-Namen -
                  welche Familie gilt, entscheidet allein die .qsf
-rtl/serial_api/  USB-Monitor-API (Option 'serial_api')
-rtl/sound/       Soundkarten-Module (Option 'sound', nur die ruhenden Varianten)
+rtl/serial_api/  USB-Monitor-API (HAS_MONITOR)
+rtl/sound/       Soundkarten-Module (HAS_SOUND) - in JEDER Dateiliste, nicht nur
+                 in der der S-Variante, siehe 'weggenerieren' weiter unten
 top/WillFA7.vhd  DAS Top-Level
+top/WillFA7_cii.vhd  Platinenhuelle fuer Cyclone II (VIRTUAL_PIN geht dort nicht)
 variants/<name>/ variant_pkg.vhd · device.tcl · pins.tcl · variant.psd1 ·
                  WillFA7.sdc · WillFA7.qpf · willfa7.cof · WillFA7.qsf (generiert)
 scripts/         gen_qsf.ps1 · check.ps1 · build.ps1 · release.ps1 · files_*.tcl · baseline.csv
 bin/             Release-Binaries + changelog.txt
-docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide)
+docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide) und die
+                 beiden User Manuals (WillFA7 und WillFA7S). Manuals ohne Versionsnummer
+                 im Dateinamen - die Version steht im Kopf des Dokuments
 archive/         historische Modulstaende, in keinem Build
 ```
 
@@ -52,20 +65,20 @@ archive/         historische Modulstaende, in keinem Build
 
 | `variants/<name>` | Version | FPGA | Quartus | Stand |
 |---|---|---|---|---|
-| `cyclone_ii` | 1.21 | EP2C5T144C8 | **13.0sp1** | aktiv, 94 % LE |
-| `cyclone_iv_v3` | 2.21 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
-| `cyclone_iv_v4` | 3.21 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
-| `cyclone_10` | 4.21 | 10CL006YE144C8G | 22.1std | aktiv |
-| `cyclone_iv_dev_open` | 5.21 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
-| `s_cyclone_iv_v4` | 6.03 | EP4CE10E22C8 | 22.1std | **ruht**, mit Soundkarte, baut wieder |
+| `cyclone_ii` | 1.22 | EP2C5T144C8 | **13.0sp1** | aktiv, 94 % LE, baut über `WillFA7_cii` |
+| `cyclone_iv_v3` | 2.22 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
+| `cyclone_iv_v4` | 3.22 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
+| `cyclone_10` | 4.22 | 10CL006YE144C8G | 22.1std | aktiv |
+| `cyclone_iv_dev_open` | 5.22 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
+| `s_cyclone_iv_v4` | 6.22 | EP4CE10E22C8 | 22.1std | aktiv, **mit Soundkarte** – `docs/soundcard_variant.md` |
 | `s_cyclone_10` | 7.14 | 10CL010YE144C6G | 22.1std | **ruht**, unfertig |
 
 Angezeigte Version = `BOARD_ID.SW_SUB1 SW_SUB2`. Erste Stelle aus
 `variants/<name>/variant_pkg.vhd`, die beiden anderen aus `rtl/common/version_pkg.vhd`.
 Ein Release ändert **eine** Zahl.
 
-**Hardware-Teststand: nur 3.20 war getestet.** `.21` ist auf keinem Board getestet.
-Von den S-Varianten baut `s_cyclone_iv_v4` wieder (Funktionsstand `.03`, ungetestet), `s_cyclone_10` nicht. Gründe in `VARIANTEN.md`.
+**Hardware-Teststand: nur 3.20 war getestet.** Weder `.21` noch `.22` ist auf einem Board
+getestet. `s_cyclone_10` ruht und baut nicht. Gründe in `VARIANTEN.md`.
 
 ## Build
 
@@ -96,22 +109,47 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | `BOARD_ID` | erste Stelle der Versionsanzeige |
 | `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. **Bestimmt auch das SD-Kartenformat**: 5 = 10-KByte-Image ab 5800h, 6 = 12-KByte-Image ab 5000h. Ein falscher Wert bricht nicht den Build, sondern das Spiel beim Booten. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
+| `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem das SD-Kartenformat (64-KByte-Slots mit CRC) und die DIP-Matrix. **`docs/soundcard_variant.md`** |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
-`VirtualPins`, `BinFolder`, `ReleaseArtifact`, `Dormant`.
+`VirtualPins`, `BinFolder`, `ReleaseArtifact`, `Dormant`, `TopEntity`.
 
 ### Optionale Ports
 
-`LED_debug`, `USB_Tx`, `USB_Rx` und `debug` stehen in **jeder** Portliste. Boards ohne den Pin
-bekommen `VIRTUAL_PIN` aus `variant.psd1`. Das ist keine Kosmetik: ein deklarierter
-Ausgangsport ohne Location ist für Quartus ein *benutzter* Pin, `RESERVE_ALL_UNUSED_PINS`
-greift dort nicht, und er würde irgendwo auf der Platine platziert und getrieben.
+`LED_debug`, `USB_Tx`, `USB_Rx`, `debug`, `SB_Sound`, `SB_Speech`, `SB_Test` und `Dip_Ret_4`
+stehen in **jeder** Portliste. Boards ohne den Pin bekommen `VIRTUAL_PIN` aus `variant.psd1`.
+Das ist keine Kosmetik: ein deklarierter Ausgangsport ohne Location ist für Quartus ein
+*benutzter* Pin, `RESERVE_ALL_UNUSED_PINS` greift dort nicht, und er würde irgendwo auf der
+Platine platziert und getrieben.
+
+**`VIRTUAL_PIN` funktioniert auf Cyclone II nicht.** Quartus II 13.0sp1 Web Edition nimmt die
+Zuweisung an und ignoriert sie:
+
+```
+Warning (292013): Feature Virtual IO is only available with a valid subscription license.
+```
+
+Im Fitter-Report steht dann `Total virtual pins: 0`. Im ausgelieferten **1.21** lagen deshalb
+`LED_debug` auf PIN_26, `debug` auf PIN_27, `USB_Rx` auf PIN_73 (alle drei getrieben, 24 mA) und
+`USB_Tx` auf PIN_80 – vom Fitter gewählt. Seit `.22` baut Cyclone II über die Hülle
+`top/WillFA7_cii.vhd`, die nur die 82 real vorhandenen Ports deklariert; die optionalen werden
+damit zu internen Signalen und verschwinden. 86 → 82 Pins.
+
+**Wer einen Port zum Top-Level hinzufügt, muss ihn auch in `WillFA7_cii.vhd` nachtragen.**
+Die Hülle steht deshalb in *jeder* Dateiliste: dann bricht der Build überall laut, statt bei
+Cyclone II stumm.
 
 ### `.sdc` bleibt pro Variante
 
 `cyclone_iv_v3`, `cyclone_10` und `cyclone_iv_dev_open` sind byte-identisch zu `cyclone_iv_v4`.
+`s_cyclone_iv_v4` ist es bis auf zwei angehängte `set_false_path` für die Audio-Ausgänge
+(`docs/soundcard_variant.md`, Abschnitt 11).
 **Cyclone II ist ein echter Fork** (von Quartus 13 generiert, andere PLL-Hierarchienamen).
-Nicht zusammenlegen.
+Nicht zusammenlegen. Dort kommt seit `.22` der Hüllen-Präfix dazu: `get_registers` will
+`WillFA7:CORE|cpu_clk_gen:clock_gen|…`, die PLL dagegen ihren SDC-Pinnamen
+`CORE|PLL|altpll_component|pll` – **ohne** Entity-Präfix. Der Fitter-Report druckt den
+richtigen Namen unter „SDC pin name". Ein Constraint, das nicht mehr trifft, wird **stumm**
+verworfen; die Kontrolle ist der Slack gegen `scripts/baseline.csv`.
 
 Die `.sdc` referenzieren `cpu_clk_gen:clock_gen`, `flipflops:FF_SOLS`, `flipflops:FF_LAMPSS`
 und `PLL`. **Diese vier Instanzen nie in ein Generate wickeln** – Generate-Labels ändern den
@@ -125,7 +163,7 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 |---|---|---|
 | cpu68 | `rtl/common/cpu68.vhd` | Motorola 6800/6801 (OpenCores, John E. Kent, GPL), v0.85 |
 | pia6821 | `rtl/common/pia6821.vhd` | PIA, 5 Instanzen |
-| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs |
+| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes` – damit deckt **eine** Datei auch das 64-KByte-Format der Soundkarte ab |
 | EEprom | `rtl/common/EEprom.vhd` | SPI-EEPROM (M95256 / M95512), Spielstand |
 | williams_pll | `rtl/<familie>/williams_pll.vhd` | 50 MHz → 14,28 MHz |
 | ram / rom_2K / R5101 | `rtl/<familie>/` | System-RAM, ROM-Bloecke, CMOS-RAM |
@@ -134,6 +172,9 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 | flipflops | `rtl/common/flipflops.vhd` | Flipper-Solenoide |
 | spec_sol_trigger | `rtl/common/spec_sol_trigger.vhd` | Spezialsolenoid-Trigger mit Entprellung |
 | sw_debounce | `rtl/common/sw_debounce.vhd` | Switch-Matrix-Entpreller, Maske je Spiel |
+| WISOF | `rtl/sound/WISOF.vhd` | Williams-Soundkarte Typ 1/2 – **zweiter 6802**, eigene PIA, 5×4K ROM, CVSD-Sprachdekoder und ein gemischter Delta-Sigma-DAC (nur `HAS_SOUND`). Stand **WISOF 0.9**, Herkunft und Befundliste in `docs/soundcard_variant.md` Abschnitt 14 |
+| read_the_dips_s | `rtl/sound/read_the_dips_s.vhd` | 4×4-DIP-Matrix der S-Platine (nur `HAS_SOUND`) |
+| soundtest | `rtl/sound/soundtest.vhd` | Soundtest über `SB_Test` (nur `HAS_SOUND`) |
 
 ### Taktdomänen
 
@@ -173,6 +214,10 @@ DIP ON heißt `game_option(n) = '0'`, Verbraucher benutzen also `not game_option
 | 4 | DIP4 | Spezialsolenoid-Entprellung: ON = 250 µs, OFF = 57 µs (`.18`-Verhalten) – `docs/spec_sol_trigger_analysis.md` |
 | 5 | DIP5 | Switch-Matrix-Entprellung: ON = entprellt, OFF = `.17`-Durchreichen – der globale Notausgang |
 | 6 | DIP6 | Spiel CONTACT: Spezialsolenoid 6 permanent |
+
+In der Bootanzeige stehen die Optionen auf der Credit-Anzeige, **DIP1 wiegt 1** – dieselbe
+Zählweise wie bei `game_select` und den Soundkarten-DIPs. Auf der S-Platine liegen dort zwei
+Werte: **Soundkarten-Optionen S5 links, Spieloptionen S2 rechts**.
 
 ## Switch-Debounce-Maske (`rtl/common/sw_debounce.vhd`)
 
@@ -229,9 +274,33 @@ Diese `Warning (10036)` sind bekannt und in Ordnung. Kommt eine andere dazu, ist
 | Warnung | Grund |
 |---|---|
 | `eeprom_wr_in_progress` never read | `o_wr_in_progress` ist bewusst unbenutzt |
-| `SS_R` (SD_Card), `RX_Data_W` / `RX_Data_Cmd` (EEprom) | Altbestand in den Modulen |
+| `RX_Data_W` / `RX_Data_Cmd` (EEprom) | Altbestand im Modul |
 | `wr_rom0` never read (nur `cyclone_ii`) | rom0 ist per `ROM_COUNT` weggeneriert |
 | `parameter` (WillFA7_Monitor, nur `cyclone_iv_v3`) | Altbestand im Monitor |
+| `crc16`, `crc16_r`, `crc_error` (alle ausser `s_cyclone_iv_v4`) | die CRC-Ports von `SD_Card` sind ohne Soundkarte konstant und werden von niemandem gelesen |
+
+## Die Soundkarten-Variante
+
+`s_cyclone_iv_v4` ist seit `.22` eine ganz normale Variante des gemeinsamen Top-Levels; alles
+Sound-spezifische hängt an `HAS_SOUND`. Drei Dinge, die man wissen muss, bevor man etwas anfasst:
+
+- **`WISOF` benutzt `cpu68`, `pia6821`, `one_pulse_only` und `Cross_Slow_To_Fast_Clock` aus
+  `rtl/common/`.** Eine Änderung dort trifft damit **beide** CPUs, die der MPU und die der
+  Soundkarte.
+- **Quartus löst Entity-Referenzen auch im nicht genommenen `generate`-Zweig auf.** Deshalb
+  stehen *alle* `rtl/sound/`-Dateien in `files_common.tcl`, also in jeder `.qsf`. Aus demselben
+  Grund sind `MPU_RAM` und `SB_ROM` inferiertes VHDL und keine Megafunctions – eine für
+  Cyclone IV E erzeugte Megafunction hat im Cyclone-II-Projekt nichts zu suchen.
+- **Die S-Platine braucht ein anderes SD-Kartenformat** (64-KByte-Slots ab Sektor 660, CRC16 auf
+  0xFFFE/0xFFFF). Eine Standardkarte bootet dort nicht und umgekehrt.
+- **Der Kern ist Fremdcode mit eigener Versionsgeschichte.** Er stammt aus
+  `N:\Projekte\Soundboards\FPGA Soundboard Williams\WISOF` und steht auf **0.9**. Wer ihn
+  weiterzieht, nimmt nicht einfach die Datei von dort – die dortige Fassung ist eine
+  eigenständige Platine mit SD-Karte, PLL und LEDs. Was abgezogen gehört, steht in
+  `docs/soundcard_variant.md` Abschnitt 14.
+
+Alles Weitere – Pins, DIP-Matrix, Adressraum der Soundkarte, Soundtest, Zeitverhalten – steht in
+**`docs/soundcard_variant.md`**. Der alte Fork-Stand 6.03 liegt in `archive/s_cyclone_iv_v4_603/`.
 
 ## Historie und Altbestand
 

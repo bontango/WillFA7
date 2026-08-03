@@ -5,8 +5,8 @@ structure is complete, not so that it can be compiled today.
 
 ## What is different about it
 
-Unlike the five active variants it does **not** use `top/WillFA7.vhd` and it does **not**
-use `rtl/common/`. It has its own `WillFA7.vhd`, its own frozen copies of the common
+Unlike the six active variants - `s_cyclone_iv_v4` among them since `.22` - it does **not**
+use `top/WillFA7.vhd` and it does **not** use `rtl/common/`. It has its own `WillFA7.vhd`, its own frozen copies of the common
 modules and of the megafunctions under `local/`, and it pulls the sound board modules
 from `rtl/sound/` and `rtl/cyclone_10_s/`.
 

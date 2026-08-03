@@ -2,8 +2,9 @@
 -- Ralf Thelen 'bontango' - www.lisy.dev
 --
 -- ONE top level for all board variants. What differs per board lives in
--- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR), pins.tcl,
--- device.tcl and WillFA7.sdc. This file must not contain anything board specific.
+-- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR, HAS_SOUND),
+-- pins.tcl, device.tcl and WillFA7.sdc. This file must not contain anything board
+-- specific.
 --
 -- The displayed version is BOARD_ID.SW_SUB1 SW_SUB2 - first digit from variant_pkg,
 -- the other two from rtl/common/version_pkg.vhd. Version history: bin/changelog.txt.
@@ -18,6 +19,8 @@ use ieee.std_logic_unsigned.all;
 -- SW_SUB1/SW_SUB2: common function level of all variants (rtl/common/version_pkg.vhd)
 use work.variant_pkg.all;
 use work.version_pkg.all;
+-- DISPLAY_T / DISPLAY_TS for the boot message data, which HAS_SOUND fills differently
+use work.instruction_buffer_type.all;
 	
 entity WillFA7 is
 	port(
@@ -94,12 +97,39 @@ entity WillFA7 is
 		LED_debug	: out STD_LOGIC;	-- dev boards only, follows reset_sw
 		USB_Tx: in std_logic;		-- serial monitor API, data into the FPGA
 		USB_Rx: out std_logic;		-- serial monitor API, data out of the FPGA
-		debug: out std_logic		-- scope probe, driven by the serial monitor
+		debug: out std_logic;		-- scope probe, driven by the serial monitor
+
+		-- Optional as well: the integrated sound board (HAS_SOUND). Only the WillFA7S
+		-- boards bring these out, and they take the pins away from the DIP strobes -
+		-- which is why those boards read a fourth DIP return line instead and multiplex
+		-- the strobes onto sw_strobe. See docs/soundcard_variant.md.
+		SB_Sound: out std_logic;	-- audio out, delta sigma
+		SB_Speech: out std_logic;	-- was the second delta sigma output, idle since .22
+		SB_Test: in std_logic;		-- sound test push button, pulled up in device.tcl
+		Dip_Ret_4: in std_logic		-- fourth DIP return, turns the 4x3 matrix into 4x4
 
 		);
 end;
 
-architecture rtl of WillFA7 is 
+architecture rtl of WillFA7 is
+
+-- SD card layout. Follows straight from HAS_SOUND, so it is derived here instead of
+-- being two more constants in every variant_pkg.vhd.
+--   standard : 24 sectors = 12 KByte per game, no CRC
+--   WillFA7S : 128 sectors = 64 KByte per game, CRC16-CCITT over the first 32 KByte
+-- VHDL-93 has no conditional expression, hence the little functions.
+function pick_slot_sectors(sound : boolean) return integer is
+begin
+	if sound then return 128; else return 24; end if;
+end function;
+
+function pick_crc_bytes(sound : boolean) return integer is
+begin
+	if sound then return 32768; else return 0; end if;
+end function;
+
+constant SD_SLOT_SECTORS : integer := pick_slot_sectors(HAS_SOUND);
+constant SD_CRC_BYTES    : integer := pick_crc_bytes(HAS_SOUND);
 
 signal cpu_clk		:  std_logic;  --894KHz for Williams
 signal mem_clk		:  std_logic;  --894KHz shifted for mem access without glitches
@@ -211,14 +241,22 @@ signal eeprom_trigger	:	std_logic:='0';
 signal eeprom_wr_in_progress	:	std_logic:='1';
 
 -- SD card
-signal address_sd_card	:  std_logic_vector(13 downto 0);
+-- 16 bit since .22: the WillFA7S slot is 64 KByte. With ROM_COUNT*2048 bytes the
+-- counter never leaves the lower 14 bits, so the decodes below stay unambiguous.
+signal address_sd_card	:  std_logic_vector(15 downto 0);
 signal data_sd_card	:  std_logic_vector(7 downto 0);
 signal wr_rom			:  std_logic;
 signal wr_game_rom			:  std_logic;
 signal wr_system_rom			:  std_logic;
-signal SDcard_MOSI	:	std_logic; 
-signal SDcard_CLK		:	std_logic; 
+signal SDcard_MOSI	:	std_logic;
+signal SDcard_CLK		:	std_logic;
 signal SDcard_error	:	std_logic:='1'; --active low
+-- CRC of the game data on the card. Only the sound board layout carries one, so on
+-- every other variant these three stay constant and unread - that is where the three
+-- 'never read' warnings for them come from, see CLAUDE.md.
+signal crc16			:  std_logic_vector(15 downto 0); -- computed while reading
+signal crc16_r			:  std_logic_vector(15 downto 0); -- read from the end of the slot
+signal crc_error		:  std_logic;
 
 -- EEprom 
 signal address_eeprom	:  std_logic_vector(7 downto 0);
@@ -277,6 +315,50 @@ signal sp_solenoid1_mpu_filtered	: std_logic;
 -- system type detection
 signal is_sys3 : std_logic; -- '1' for System3/4 (game_select 0-8)
 
+----------------------------------------------------------------------------
+-- integrated sound board (HAS_SOUND) - see docs/soundcard_variant.md
+-- All of this generates away where HAS_SOUND is false; that the five boards without
+-- a sound board keep their exact resource numbers is what proves it.
+----------------------------------------------------------------------------
+-- Only what actually has to cross a generate boundary is declared here. Everything
+-- that lives entirely inside GEN_SOUND is declared inside it, so it does not exist
+-- at all on a board without a sound card - which keeps the expected warning list in
+-- CLAUDE.md short enough to still be worth reading.
+
+-- what PIA2 puts out; on a sound board the DIP strobes borrow four of these lines
+-- during boot phase 1, everywhere else it goes straight to the sw_strobe pins
+signal game_sw_strobe	: std_logic_vector(7 downto 0);
+
+-- the four extra DIP bits the 4x4 matrix delivers: driven in GEN_DIPS_SOUND,
+-- read in GEN_SOUND
+signal sb_option		: std_logic_vector(1 to 4);
+
+-- sound test takes over the display and blocks the diagnostic NMI while it runs
+signal soundtest_active	: std_logic;
+signal sbtest_disp_strobe	: std_logic_vector(3 downto 0);
+signal sbtest_disp_bcd		: std_logic_vector(7 downto 0);
+
+-- The sound commands as they leave the MPU. Without a sound board this is just 'sound';
+-- with one it is the selected source (SYS3/SYS7/sound test), and it goes to BOTH the
+-- internal sound board and the sound/comma latch, i.e. the connector for an external
+-- one. That is how 6.03 had it and it is kept on purpose.
+signal sound_com		: std_logic_vector(4 downto 0);
+
+-- driven in GEN_SOUND, read by the boot message data in GEN_DIPS_SOUND
+signal sbo_dig0			: std_logic_vector(3 downto 0);
+signal sbo_dig1			: std_logic_vector(3 downto 0);
+signal crc_dig			: std_logic_vector(3 downto 0); -- 7 on the error display when the CRC is wrong
+
+-- gated versions, so the sound test does not fight the diagnostics
+signal diag_nmi_in		: std_logic;
+signal cfg_enable		: std_logic;
+
+-- boot message data that HAS_SOUND fills differently (CRC instead of the date)
+signal bm_display3		: DISPLAY_T;
+signal bm_display4		: DISPLAY_T;
+signal bm_error_disp4	: DISPLAY_T;
+signal bm_status_d		: DISPLAY_TS;
+
 -- SW version comes from the two packages, see the use clauses at the top.
 
 begin
@@ -318,9 +400,13 @@ port map(
    i_Fast_Clk => clk_50
 	); 
 
--- display bm switch, switch to game in boot phase 3
-disp_bcd_i <= bm_disp_bcd when boot_phase(3) = '0' else game_disp_bcd;
-disp_strobe_i <= bm_disp_strobe when boot_phase(3) = '0' else game_disp_strobe;
+-- display bm switch, switch to game in boot phase 3.
+-- soundtest_active is a hard constant '0' without a sound board, so this collapses
+-- back to the two way switch there.
+disp_bcd_i <= sbtest_disp_bcd when soundtest_active = '1' else
+              bm_disp_bcd when boot_phase(3) = '0' else game_disp_bcd;
+disp_strobe_i <= sbtest_disp_strobe when soundtest_active = '1' else
+                 bm_disp_strobe when boot_phase(3) = '0' else game_disp_strobe;
 disp_bcd <= disp_bcd_i;
 disp_strobe <= disp_strobe_i;
 
@@ -337,30 +423,113 @@ port map(
 	-- input (display data)
 	display1	=> ( x"F",x"F",x"F",BOARD_ID,SW_SUB1,SW_SUB2 ),
 	display2	=> ( x"F",x"F",x"F", x"0", g_dig1, g_dig0),
-	display3	=> ( x"0",x"5",x"0",x"9",x"6",x"3" ),
-	display4	=> ( x"F",x"F",x"F",x"F",b_dig1, b_dig0),
-	error_disp4 => ( x"F",x"5",x"6",x"F",b_dig1, b_dig0),
-	status_d	=> ( x"F",x"F",o_dig0, o_dig1 )
+	-- displays 3 and 4 differ with a sound board: they show the two CRCs of the game
+	-- data instead of the build date. Driven by the generates further down - the
+	-- instance itself must stay outside any generate, its label is a node name.
+	display3	=> bm_display3,
+	display4	=> bm_display4,
+	error_disp4 => bm_error_disp4,
+	status_d	=> bm_status_d
 	);
-RDIPS: entity work.read_the_dips
-port map(
-	clk_in		=> cpu_clk,
-	i_Rst_L  => boot_phase(0),   
-	--output 
-	game_select	=> game_select,
-	game_option	=> game_option,
-	-- strobes
-	dipstrobe1 => DIP_Str_1,
-	dipstrobe2 => DIP_Str_2,
-	dipstrobe3 => DIP_Str_3,
-	dipstrobe4 => DIP_Str_4,
-	-- input
-	return1 => Dip_Ret_1,
-	return2 => Dip_Ret_2,
-	return3 => Dip_Ret_3,
-	-- signal when finished
-	done	=> boot_phase(1) -- set to '1' when reading dips is done
-	);	
+
+----------------------------------------------------------------------------
+-- reading the DIPs, and what the boot message shows
+--
+-- Without a sound board this is a 4x3 matrix on four dedicated strobe pins, read
+-- continuously. With one, those pins carry SB_Sound/SB_Speech/SB_Test instead, so
+-- the strobes borrow sw_strobe(7,5,3,1) during boot phase 1 and a fourth return line
+-- is read - a 4x4 matrix, and it is read exactly once because continuing would
+-- disturb the switch matrix once the game runs. Details and bit map:
+-- docs/soundcard_variant.md.
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+----------------------------------------------------------------------------
+GEN_DIPS_PLAIN: if not HAS_SOUND generate
+	RDIPS: entity work.read_the_dips
+	port map(
+		clk_in		=> cpu_clk,
+		i_Rst_L  => boot_phase(0),
+		--output
+		game_select	=> game_select,
+		game_option	=> game_option,
+		-- strobes
+		dipstrobe1 => DIP_Str_1,
+		dipstrobe2 => DIP_Str_2,
+		dipstrobe3 => DIP_Str_3,
+		dipstrobe4 => DIP_Str_4,
+		-- input
+		return1 => Dip_Ret_1,
+		return2 => Dip_Ret_2,
+		return3 => Dip_Ret_3,
+		-- signal when finished
+		done	=> boot_phase(1) -- set to '1' when reading dips is done
+		);
+
+	-- the switch strobes are PIA2's alone here
+	sw_strobe <= game_sw_strobe;
+
+	-- build date and boot phase, the usual boot message
+	bm_display3    <= ( x"0",x"5",x"0",x"9",x"6",x"3" );
+	bm_display4    <= ( x"F",x"F",x"F",x"F",b_dig1, b_dig0);
+	bm_error_disp4 <= ( x"F",x"5",x"6",x"F",b_dig1, b_dig0);
+	bm_status_d    <= ( x"F",x"F",o_dig0, o_dig1 );
+end generate;
+
+GEN_DIPS_SOUND: if HAS_SOUND generate
+	signal dipstrobe : std_logic_vector(3 downto 0);
+begin
+	RDIPS_S: entity work.read_the_dips_s
+	port map(
+		clk_in		=> cpu_clk,
+		i_Rst_L  => boot_phase(0),
+		--output
+		game_select	=> game_select,
+		game_option	=> game_option,
+		sb_option	=> sb_option,
+		-- strobes
+		dipstrobe1 => dipstrobe(0),
+		dipstrobe2 => dipstrobe(1),
+		dipstrobe3 => dipstrobe(2),
+		dipstrobe4 => dipstrobe(3),
+		-- input
+		return1 => Dip_Ret_1,
+		return2 => Dip_Ret_2,
+		return3 => Dip_Ret_3,
+		return4 => Dip_Ret_4,
+		-- signal when finished
+		done	=> boot_phase(1) -- set to '1' when reading dips is done
+		);
+
+	-- switch strobes controlled by the game from boot phase 1 on; before that the
+	-- odd ones carry the DIP strobes
+	sw_strobe(7) <= game_sw_strobe(7) when boot_phase(1) = '1' else dipstrobe(0);
+	sw_strobe(6) <= game_sw_strobe(6);
+	sw_strobe(5) <= game_sw_strobe(5) when boot_phase(1) = '1' else dipstrobe(1);
+	sw_strobe(4) <= game_sw_strobe(4);
+	sw_strobe(3) <= game_sw_strobe(3) when boot_phase(1) = '1' else dipstrobe(2);
+	sw_strobe(2) <= game_sw_strobe(2);
+	sw_strobe(1) <= game_sw_strobe(1) when boot_phase(1) = '1' else dipstrobe(3);
+	sw_strobe(0) <= game_sw_strobe(0);
+
+	-- The dedicated strobe pins do not exist on this board (VIRTUAL_PIN), but an
+	-- output port still needs a driver.
+	DIP_Str_1 <= dipstrobe(0);
+	DIP_Str_2 <= dipstrobe(1);
+	DIP_Str_3 <= dipstrobe(2);
+	DIP_Str_4 <= dipstrobe(3);
+
+	-- computed and read CRC of the game data instead of the build date, and a 7 in
+	-- the leading digit of the error display when they disagree
+	bm_display3    <= ( x"F",x"F", crc16(15 downto 12), crc16(11 downto 8), crc16(7 downto 4), crc16(3 downto 0));
+	bm_display4    <= ( x"F",x"F", crc16_r(15 downto 12), crc16_r(11 downto 8), crc16_r(7 downto 4), crc16_r(3 downto 0));
+	bm_error_disp4 <= ( crc_dig, x"5",x"6",x"F", b_dig1, b_dig0);
+	-- The sound board DIPs join the status display. On the board the sound board options
+	-- end up on the LEFT pair of digits, the game options on the right - boot_message
+	-- puts status_d(0)/(1) on the strobes 15/14 and status_d(2)/(3) on 7/6, and 14/15 is
+	-- the left pair. Tens before ones within each pair.
+	bm_status_d    <= ( sbo_dig0, sbo_dig1, o_dig0, o_dig1 );
+end generate;
 
 -----------------------------------------------
 -- phase 1: activated by 'read_the_dips' after first read
@@ -376,7 +545,13 @@ SPI_CLK <= SDcard_CLK when boot_phase(2) = '0' else EEprom_CLK;
 ----------------------
 SD_CARD: entity work.SD_Card
 generic map(
-	Read_Bytes => ROM_COUNT*2048  -- 2K per ROM block, see variant_pkg.vhd
+	Read_Bytes => ROM_COUNT*2048,  -- 2K per ROM block, see variant_pkg.vhd
+	-- The sound board layout is a different card format: 64 KByte per game instead
+	-- of 12, with the sound ROMs behind the MPU ROMs and a CRC16 in the last two
+	-- bytes. Both are described in docs/soundcard_variant.md.
+	Slot_Sectors => SD_SLOT_SECTORS,
+	Check_CRC    => HAS_SOUND,
+	CRC_Bytes    => SD_CRC_BYTES
 )
 port map(
 	i_clk		=> clk_50,
@@ -396,9 +571,13 @@ port map(
 	wr_rom => wr_rom,
 	-- feedback
 	SDcard_error => SDcard_error,
+	-- CRC, sound board layout only - constant on every other variant
+	calc_checksum => crc16,
+	read_checksum => crc16_r,
+	crc_error => crc_error,
 	-- control boot phases
 	cpu_reset_l => boot_phase(2)
-	);	
+	);
 	
 -----------------------------------------------
 -- phase 2: activated by SD card read
@@ -473,9 +652,14 @@ port map(
    i_Fast_Clk => cpu_clk
 	);
 	
+-- While the sound test runs, Diag_SW steps through the sound numbers - it must not
+-- fire the diagnostic NMI at the same time. soundtest_active is a hard constant '0'
+-- without a sound board, so this is a plain wire there.
+diag_nmi_in <= diag_stable and not soundtest_active;
+
 DIAGSW: entity work.one_pulse_only
 port map(
-   sig_in => diag_stable,
+   sig_in => diag_nmi_in,
 	sig_out => cpu_nmi,
    clk_in => cpu_clk,
 	rst => reset_l
@@ -500,6 +684,8 @@ comma12 <= pia5_pb_o(7);
 ----------------------
 -- sound
 ----------------------
+-- the SYS6/7 source. What actually leaves the board is sound_com, which equals this
+-- unless a sound card is fitted - see the generates at the end of the file.
 sound <= pia5_pa_o(4 downto 0);
 
 -- IRQ signals ( should be '0')
@@ -538,12 +724,12 @@ rom5_cs   <= '1' when cpu_addr(14 downto 11) = "1111" and cpu_vma='1' else '0'; 
 GEN_ROM0: if ROM_COUNT = 6 generate
 	-- 12 KByte image, first 2K window at 5000h
 	rom0_cs <= '1' when cpu_addr(14 downto 11) = "1010" and cpu_vma='1' else '0'; --5000-57FF
-	wr_rom0 <= '1' when address_sd_card(13 downto 11) = "000" and wr_rom='1' else '0'; --first 2K
-	wr_rom1 <= '1' when address_sd_card(13 downto 11) = "001" and wr_rom='1' else '0'; --sec 2K
-	wr_rom2 <= '1' when address_sd_card(13 downto 11) = "010" and wr_rom='1' else '0'; --third 2K
-	wr_rom3 <= '1' when address_sd_card(13 downto 11) = "011" and wr_rom='1' else '0'; --fourth 2K
-	wr_rom4 <= '1' when address_sd_card(13 downto 11) = "100" and wr_rom='1' else '0'; --fift 2K
-	wr_rom5 <= '1' when address_sd_card(13 downto 11) = "101" and wr_rom='1' else '0'; --sixt 2K
+	wr_rom0 <= '1' when address_sd_card(15 downto 11) = "00000" and wr_rom='1' else '0'; --first 2K
+	wr_rom1 <= '1' when address_sd_card(15 downto 11) = "00001" and wr_rom='1' else '0'; --sec 2K
+	wr_rom2 <= '1' when address_sd_card(15 downto 11) = "00010" and wr_rom='1' else '0'; --third 2K
+	wr_rom3 <= '1' when address_sd_card(15 downto 11) = "00011" and wr_rom='1' else '0'; --fourth 2K
+	wr_rom4 <= '1' when address_sd_card(15 downto 11) = "00100" and wr_rom='1' else '0'; --fift 2K
+	wr_rom5 <= '1' when address_sd_card(15 downto 11) = "00101" and wr_rom='1' else '0'; --sixt 2K
 end generate;
 
 GEN_ROM0_OFF: if ROM_COUNT /= 6 generate
@@ -552,11 +738,11 @@ GEN_ROM0_OFF: if ROM_COUNT /= 6 generate
 	rom0_cs   <= '0';
 	wr_rom0   <= '0';
 	rom0_dout <= x"FF";	-- must be driven: with ROM_0 gone it would have no source at all
-	wr_rom1 <= '1' when address_sd_card(13 downto 11) = "000" and wr_rom='1' else '0'; --first 2K
-	wr_rom2 <= '1' when address_sd_card(13 downto 11) = "001" and wr_rom='1' else '0'; --sec 2K
-	wr_rom3 <= '1' when address_sd_card(13 downto 11) = "010" and wr_rom='1' else '0'; --third 2K
-	wr_rom4 <= '1' when address_sd_card(13 downto 11) = "011" and wr_rom='1' else '0'; --fourth 2K
-	wr_rom5 <= '1' when address_sd_card(13 downto 11) = "100" and wr_rom='1' else '0'; --fift 2K
+	wr_rom1 <= '1' when address_sd_card(15 downto 11) = "00000" and wr_rom='1' else '0'; --first 2K
+	wr_rom2 <= '1' when address_sd_card(15 downto 11) = "00001" and wr_rom='1' else '0'; --sec 2K
+	wr_rom3 <= '1' when address_sd_card(15 downto 11) = "00010" and wr_rom='1' else '0'; --third 2K
+	wr_rom4 <= '1' when address_sd_card(15 downto 11) = "00011" and wr_rom='1' else '0'; --fourth 2K
+	wr_rom5 <= '1' when address_sd_card(15 downto 11) = "00100" and wr_rom='1' else '0'; --fift 2K
 end generate;
 
 rom_address <=
@@ -755,11 +941,11 @@ port map(
 	ff2_data_in(7) => not pia3_pa_o(6), --lamp row 7
 	ff3_data_in(0) => comma34,
 	ff3_data_in(1) => Diag_LED,
-	ff3_data_in(2) => sound(3),
-	ff3_data_in(3) => sound(0),
-	ff3_data_in(4) => sound(1),
-	ff3_data_in(5) => sound(2),
-	ff3_data_in(6) => sound(4),
+	ff3_data_in(2) => sound_com(3),
+	ff3_data_in(3) => sound_com(0),
+	ff3_data_in(4) => sound_com(1),
+	ff3_data_in(5) => sound_com(2),
+	ff3_data_in(6) => sound_com(4),
 	ff3_data_in(7) => comma12
 );
 
@@ -864,12 +1050,14 @@ port map(
 	ca2_i => '1',
 	ca2_o => sp_solenoid_mpu(4),
 	pb_i => x"FF",
-	pb_o => sw_strobe,	
+	pb_o => game_sw_strobe,
 	cb1 => '0',
 	cb2_i => '1',
 	cb2_o => sp_solenoid_mpu(3),
 	default_pb_level => '0'  -- output level when configured as input
 );
+-- NOT straight to the sw_strobe pins: on a sound board the DIP strobes borrow four
+-- of these lines during boot phase 1. See GEN_DIPS_PLAIN / GEN_DIPS_SOUND above.
 -- PIA III driver board (2400) Lamps
 --	 IRQA IRQ/'
 --	 IRQB IRQ/'
@@ -1031,6 +1219,11 @@ port map(
 ----------------------
 -- SYS3 & 4 config switches
 ----------------------
+-- Enter_SW reads the SYS3/4 configuration DIPs into PIA1 - except while the sound
+-- test runs, where the same button plays the selected sound. Constant '0' for
+-- soundtest_active without a sound board, so this stays 'not enter_stable' there.
+cfg_enable <= (not enter_stable) and (not soundtest_active);
+
 CFG: entity work.AM8T28
 port map (
 
@@ -1041,7 +1234,7 @@ port map (
 
        R_out => R_out, -- receiver outputs 
 
-       B_E  => not enter_stable, --active high (on WillFA7 signal is '0' wenn pushed -> switch with internal pullup)
+       B_E  => cfg_enable, --active high (on WillFA7 signal is '0' wenn pushed -> switch with internal pullup)
        R_E  => not pia1_ca2  -- active low, accent inverter in Williams SYS3 schematic
     );
 	 
@@ -1261,6 +1454,164 @@ GEN_NO_MONITOR: if not HAS_MONITOR generate
 	-- driver - otherwise Quartus ties it to GND without saying so.
 	USB_Rx <= '1';	-- UART idle level
 	debug  <= '0';
+end generate;
+
+----------------------------------------------------------------------------
+-- integrated sound board (option 'sound')
+-- Only the WillFA7S boards have one. Everything about it is collected in
+-- docs/soundcard_variant.md - read that before touching anything in here.
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+----------------------------------------------------------------------------
+GEN_NO_SOUND: if not HAS_SOUND generate
+	-- Virtual pins on these boards, but an output port still needs a driver -
+	-- same trap as USB_Rx/debug above.
+	SB_Sound  <= '0';
+	SB_Speech <= '0';
+
+	-- Constants, so everything that reads them collapses: the display switch, the
+	-- NMI gate, the config gate. Nothing of the sound board survives here, which the
+	-- baseline check confirms - the five boards without one keep their exact numbers.
+	-- sb_option, sbo_dig0/1 and crc_dig are deliberately left undriven: nothing reads
+	-- them here either, so giving them a value would only add a 'never read' warning.
+	soundtest_active   <= '0';
+	sbtest_disp_strobe <= (others => '0');
+	sbtest_disp_bcd    <= (others => '0');
+	sound_com          <= sound;	-- nothing to select from, so a plain wire
+end generate;
+
+GEN_SOUND: if HAS_SOUND generate
+	-- sound board ROMs, 4K each, filled from SD between 12K and 32K
+	signal sb_address		: std_logic_vector(11 downto 0);
+	signal sbrom_address	: std_logic_vector(11 downto 0);
+	signal sbrom1_dout	: std_logic_vector(7 downto 0);
+	signal sbrom2_dout	: std_logic_vector(7 downto 0);
+	signal sbrom3_dout	: std_logic_vector(7 downto 0);
+	signal sbrom4_dout	: std_logic_vector(7 downto 0);
+	signal sbrom5_dout	: std_logic_vector(7 downto 0);
+	signal wr_sbrom1		: std_logic;
+	signal wr_sbrom2		: std_logic;
+	signal wr_sbrom3		: std_logic;
+	signal wr_sbrom4		: std_logic;
+	signal wr_sbrom5		: std_logic;
+
+	-- what actually reaches the sound board, and where it comes from
+	signal sound_sys3		: std_logic_vector(4 downto 0); -- solenoids 9..13, SYS3/4
+	signal sound_test		: std_logic_vector(4 downto 0); -- from the sound test
+begin
+	----------------------------------------------------------------------------
+	-- SD card windows for the sound board ROMs
+	-- 0..12K are the MPU ROMs (decoded further up), 12K..32K the five sound board
+	-- ROM blocks. Everything above is padding plus the CRC. docs/soundcard_variant.md
+	----------------------------------------------------------------------------
+	wr_sbrom1 <= '1' when address_sd_card(15 downto 12) = "0011" and wr_rom='1' else '0'; --12..16 k
+	wr_sbrom2 <= '1' when address_sd_card(15 downto 12) = "0100" and wr_rom='1' else '0'; --16..20 k
+	wr_sbrom3 <= '1' when address_sd_card(15 downto 12) = "0101" and wr_rom='1' else '0'; --20..24 k
+	wr_sbrom4 <= '1' when address_sd_card(15 downto 12) = "0110" and wr_rom='1' else '0'; --24..28 k
+	wr_sbrom5 <= '1' when address_sd_card(15 downto 12) = "0111" and wr_rom='1' else '0'; --28..32 k
+
+	-- filled from SD while booting, read by the sound board CPU afterwards
+	sbrom_address <= address_sd_card(11 downto 0) when wr_rom = '1' else sb_address;
+
+	-- 4K area 3000h-3fffh (IC7 on a real board)
+	SB_ROM_1: entity work.SB_ROM
+	port map( address => sbrom_address, clock => clk_50, data => data_sd_card,
+	          wren => wr_sbrom1, q => sbrom1_dout );
+	-- 4K area 4000h-4fffh (IC5)
+	SB_ROM_2: entity work.SB_ROM
+	port map( address => sbrom_address, clock => clk_50, data => data_sd_card,
+	          wren => wr_sbrom2, q => sbrom2_dout );
+	-- 4K area 5000h-5fffh (IC6)
+	SB_ROM_3: entity work.SB_ROM
+	port map( address => sbrom_address, clock => clk_50, data => data_sd_card,
+	          wren => wr_sbrom3, q => sbrom3_dout );
+	-- 4K area 6000h-6fffh (IC4)
+	SB_ROM_4: entity work.SB_ROM
+	port map( address => sbrom_address, clock => clk_50, data => data_sd_card,
+	          wren => wr_sbrom4, q => sbrom4_dout );
+	-- 4K area 7000h-7fffh (IC12, doubled on a real board)
+	SB_ROM_5: entity work.SB_ROM
+	port map( address => sbrom_address, clock => clk_50, data => data_sd_card,
+	          wren => wr_sbrom5, q => sbrom5_dout );
+
+	----------------------------------------------------------------------------
+	-- where the five sound command lines come from
+	-- SYS6/7 drive them from PIA5 port A, SYS3/4 from solenoids 9..13. Until 6.03
+	-- that was the DIP sb_option(3); since 6.21 it follows is_sys3, the same source
+	-- of truth the memory protect has used since .20.
+	----------------------------------------------------------------------------
+	sound_sys3 <= not pia4_pb_o(4 downto 0);
+	sound_com  <= sound_test when soundtest_active = '1' else
+	              sound_sys3 when is_sys3 = '1' else
+	              sound;
+
+	-- Sound and speech are mixed inside the sound board since .22 and leave it together
+	-- on SB_Sound - on this board only that pin reaches the amplifier. SB_Speech stays
+	-- pinned but idle; an output port always needs a driver. See F4/F5 in
+	-- docs/soundcard_variant.md.
+	SB_Speech <= '0';
+
+	SOUNDBOARD: entity work.WISOF
+	port map(
+		clk_50	=> clk_50,
+		cpu_clk	=> cpu_clk,
+		reset_l	=> reset_l,
+		test	=> not(not SB_Test and sb_option(4)),
+		sound_o	=> SB_Sound,
+
+		Sound => sound_com,
+
+		-- SB_Opt is declared (4 downto 1) in WISOF, sb_option here is (1 to 4). A whole
+		-- array association would match them by position, not by index name, and mirror
+		-- the four DIPs - chimes would end up on Dip4. Element by element instead, so the
+		-- mapping is the one docs/soundcard_variant.md describes.
+		SB_Opt(1) => sb_option(1),
+		SB_Opt(2) => sb_option(2),
+		SB_Opt(3) => sb_option(3),
+		SB_Opt(4) => sb_option(4),
+
+		rom1_dout => sbrom1_dout,
+		rom2_dout => sbrom2_dout,
+		rom3_dout => sbrom3_dout,
+		rom4_dout => sbrom4_dout,
+		rom5_dout => sbrom5_dout,
+
+		sb_address	=> sb_address
+	);
+
+	----------------------------------------------------------------------------
+	-- sound test: SB_Test starts it, Diag_SW steps, Enter_SW plays. Takes over the
+	-- display; the NMI and the SYS3 config read are gated off while it runs.
+	----------------------------------------------------------------------------
+	SOUNDTST: entity work.soundtest
+	port map(
+		clk_in	=> clk_50,
+		i_Rst_L	=> reset_l,
+		activate	=> not SB_Test and not sb_option(4),
+		step	=> Diag_SW,
+		play	=> Enter_SW,
+		soundtoplay => sound_test,
+		is_active => soundtest_active,
+		strobe => sbtest_disp_strobe,
+		bcd => sbtest_disp_bcd
+	);
+
+	-- sound board DIPs for the status display. Dip1 is the least significant bit, the
+	-- same convention S1 (game select) and S2 (game options) use - hence the explicit
+	-- order: sb_option is (1 to 4), so plain concatenation would weight Dip1 with 8.
+	CONVSBO: entity work.byte_to_decimal
+	port map(
+		clk_in	=> clk_50,
+		mybyte	=> "1111" & sb_option(4) & sb_option(3) & sb_option(2) & sb_option(1),
+		dig0 => sbo_dig0,
+		dig1 => sbo_dig1,
+		dig2 => open
+		);
+
+	-- leading digit of the error display: 7 means the game data on the card did not
+	-- match its CRC, see rtl/common/SD_Card.vhd (blink code 7 on LED_SD_Error)
+	crc_dig <= x"7" when crc_error = '1' else x"F";
 end generate;
 
 end rtl;

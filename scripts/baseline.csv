@@ -1,7 +1,7 @@
 Variant;Device;LE;LEtotal;MemoryBits;Slack;Note
-cyclone_ii;EP2C5T144C8;4313;4608;94208;3.812;Quartus 13.0sp1. Measured on .21. Uses the shared cpu68 v0.85 since the monorepo - it carried its own v0.83 before, which was 4368 LE.
-cyclone_iv_v3;EP4CE6F17C8;5019;6272;110592;6.171;Measured on .21. Includes the serial monitor, which is worth about 550 LE.
-cyclone_iv_v4;EP4CE6E22C8;4469;6272;110592;6.265;Lead variant. Measured on .21.
-cyclone_10;10CL006YE144C8G;4473;6272;110592;6.791;Measured on .21. Unchanged from the .20 figure.
-cyclone_iv_dev_open;EP4CE6E22C8;4469;6272;110592;7.006;Measured on .21.
-s_cyclone_iv_v4;EP4CE10E22C8;5392;10320;273408;3.600;Dormant, function level .03 with its own local/ modules, so the .21 change does not reach it - figures unchanged. Only checked with -All.
+cyclone_ii;EP2C5T144C8;4322;4608;94208;3.434;Quartus 13.0sp1. Builds through the WillFA7_cii shell - VIRTUAL_PIN does not work on this Quartus. 82 instead of 86 pins since .22: the four optional ports used to be placed and driven on real pins.
+cyclone_iv_v3;EP4CE6F17C8;5033;6272;110592;6.215;Includes the serial monitor, which is worth about 550 LE. This variant repacks the most on any top level change.
+cyclone_iv_v4;EP4CE6E22C8;4476;6272;110592;6.025;Lead variant.
+cyclone_10;10CL006YE144C8G;4488;6272;110592;6.264;
+cyclone_iv_dev_open;EP4CE6E22C8;4477;6272;110592;6.809;
+s_cyclone_iv_v4;EP4CE10E22C8;6303;10320;275456;5.772;Integrated sound board. About 900 LE and 165 kbit more than a plain v4 board: WISOF with its own 6802, five 4 KByte sound ROMs, the CVSD decoder, the sound test and the CRC. The extra 2048 memory bits over 6.03 are the per game switch debounce mask it gained with .22. The 64 LE over the first .22 build are the WISOF 0.9 findings: signed CVSD integrator with saturation and reset, the audio mixer and its synchroniser, minus one of the two DACs. Remeasured 03.08.2026 after the sb_option direction fix (6308 -> 6303). Registers are unchanged at 2409 - the four DIP bits only moved to other sinks, and the fitter repacks the combinational part: 6294 with the mirrored wiring, 6293 with the WISOF port fix alone, 6303 with both. Reproducible, twice the same numbers.

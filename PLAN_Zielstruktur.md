@@ -116,15 +116,36 @@ jeder einzeln mit `check.ps1 -Fit` gegen die Zahlen des Vorschritts abgesichert:
 5. `scripts\release.ps1 -Note "..."` → volle Compiles, `.jic`/`.pof` nach `bin/`, Changelog.
 6. Ein Commit, ein Tag – alle Varianten konsistent.
 
-## 6. Was offen bleibt
+## 6. Etappe 3 – die Soundkarten-Variante nachziehen — erledigt 02.08.2026
 
-- **Hardwaretest von `.21`** – auf keinem Board erfolgt. Für Cyclone II kommt der cpu68-Wechsel
-  dazu, siehe `VARIANTEN.md` Abschnitt 5.
-- **`s_cyclone_iv_v4`**: baut, ruht, steht auf Funktionsstand `.03`. Wer sie aufnimmt, muss
-  `.17` bis `.21` nachziehen und `local/` gegen `rtl/common/` auflösen.
-- **`s_cyclone_10`**: unfertig, 0 Pin-Zuweisungen, `Error (10349)` auf `Audio_O`.
+`s_cyclone_iv_v4` war der letzte Fork: eigenes Top-Level, eigene `local/`-Kopien, Funktionsstand
+`.03`. Sie baut seit `.22` aus dem gemeinsamen Baum, alles Sound-spezifische hängt an der neuen
+Konstante `HAS_SOUND`. Damit ist der Plan aus Abschnitt 2.1 auch für die Variante eingelöst, für
+die er am wenigsten selbstverständlich war.
+
+Zwei Dinge kamen dabei anders als gedacht:
+
+- **`VIRTUAL_PIN` funktioniert auf Cyclone II nicht** (Quartus 13.0sp1 Web Edition,
+  `Warning (292013)`). Der Mechanismus aus Abschnitt 2.1, auf dem die gemeinsame Portliste
+  ruht, greift dort also gar nicht – und im ausgelieferten 1.21 lagen vier optionale Ports auf
+  echten, teils getriebenen Pins des EP2C5. Antwort: die Platinenhülle `top/WillFA7_cii.vhd`,
+  die nur die real vorhandenen Ports deklariert. Details in `VARIANTEN.md` Abschnitt 3a.
+- **Megafunctions vertragen sich nicht mit dem Generate-Trick.** Weil Quartus Entity-Referenzen
+  auch im nicht genommenen Zweig auflöst, müssten die Sound-Speicher in *jeder* `.qsf` stehen –
+  auch in der von Cyclone II. Eine für Cyclone IV E erzeugte Megafunction hat dort nichts zu
+  suchen, also sind `MPU_RAM` und `SB_ROM` jetzt inferiertes VHDL. Nebeneffekt: die Sound-Sektion
+  ist damit familienunabhängig, was `s_cyclone_10` den Weg ebnet.
+
+## 7. Was offen bleibt
+
+- **Hardwaretest von `.22`** – auf keinem Board erfolgt, der letzte getestete Stand ist 3.20.
+  Prüfliste in `VARIANTEN.md` Abschnitt 5.
+- **`s_cyclone_10`**: unfertig, 0 Pin-Zuweisungen, `Error (10349)` auf `Audio_O`. Der Weg ist
+  jetzt vorgezeichnet – `HAS_SOUND` gibt es, die Sound-Speicher sind familienunabhängig.
 - **`variants/cyclone_ii/WillFA7.sdc`** ist eine von Quartus 13 generierte Datei, kein
-  handgeschriebener Constraint-Satz wie bei den anderen vier.
+  handgeschriebener Constraint-Satz wie bei den anderen. Seit `.22` muss dort zusätzlich der
+  Hüllen-Präfix von Hand gepflegt werden.
+- **PIN_26/27/73 der Cyclone-II-Platine** gegen den Schaltplan prüfen – 1.21 hat sie getrieben.
 - **Der alte Ordnerbaum** `N:\Projekte\WillFA\FPGA_source\` steht unverändert als vorläufiges
   Backup – er ist seit 28.07.2026 der einzige Inhalt von `N:\Projekte\WillFA`. Rückbau erst
   nach ausdrücklicher Freigabe und nach dem Hardwaretest.
