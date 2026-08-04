@@ -11,8 +11,8 @@
   Without a switch only quartus_map runs - fast, catches syntax and elaboration
   errors. Resource and timing figures need -Fit.
 
-  The dormant variants (s_cyclone_iv_v4, s_cyclone_10) are skipped by default; they
-  are known not to build. Use -All to include them anyway.
+  Variants marked Dormant in their variant.psd1 are skipped by default. None is today,
+  so this checks all six; use -All if a dormant one is added later.
 
 .PARAMETER Root
   Folder holding the variant folders. Default: the variants\ folder next to this script.
@@ -27,10 +27,14 @@
   Run the complete flow (map+fit+asm+sta), producing .sof/.pof.
 
 .PARAMETER All
-  Also check the variants marked dormant in their variant.psd1.
+  Also check the variants marked Dormant in their variant.psd1. None is today.
 
 .PARAMETER NoBaseline
   Do not compare against scripts\baseline.csv.
+
+.PARAMETER NoGen
+  Do not regenerate the .qsf first. Only for deliberately checking a hand edited
+  one - the next run without the switch throws that edit away again.
 
 .EXAMPLE
   .\check.ps1 -Fit
@@ -44,12 +48,21 @@ param(
     [switch]  $Fit,
     [switch]  $Full,
     [switch]  $All,
-    [switch]  $NoBaseline
+    [switch]  $NoBaseline,
+    [switch]  $NoGen
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
+$OwnRoot   = -not $Root                      # working on the repo's own variants\
 if (-not $Root) { $Root = Join-Path $RepoRoot 'variants' }
+
+# Quartus rewrites the .qsf by itself when the project has been open in the IDE -
+# 08.2026 it appended a second PARTITION_HIERARCHY line to s_cyclone_iv_v4. The .qsf
+# is a generated file, so regenerate it before anything reads it. Otherwise the
+# numbers below describe a project nobody can reproduce from device.tcl / pins.tcl /
+# variant.psd1. Silent unless something actually had to be put back.
+if ($OwnRoot -and -not $NoGen) { & (Join-Path $ScriptDir 'gen_qsf.ps1') -Quiet }
 
 # How much setup slack drift counts as a finding, and below which value the slack
 # itself is worth flagging regardless of the baseline.

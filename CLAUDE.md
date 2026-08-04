@@ -3,8 +3,8 @@
 Williams-System-3-bis-7-MPU-Ersatz auf Altera-FPGA. VHDL, Quartus.
 Autor: Ralf Thelen (bontango), www.lisy.dev · Repo: github.com/bontango/WillFA7
 
-**Sieben Platinenvarianten, ein Sourcebaum, ein Top-Level.** Was pro Board unterschiedlich
-ist, steht in `variants/<name>/` – Pins, Device und vier Konstanten. Sonst nichts.
+**Sechs Platinenvarianten, ein Sourcebaum, ein Top-Level.** Was pro Board unterschiedlich
+ist, steht in `variants/<name>/` – Pins, Device und fünf Konstanten. Sonst nichts.
 Eine Ausnahme mit Grund: `cyclone_ii` baut über die Hülle `top/WillFA7_cii.vhd`, siehe unten.
 
 Das Repo liegt unter `N:\Projekte\WillFA7\FPGA_source\` und endet dort. Eine Ebene höher,
@@ -61,24 +61,24 @@ docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide) un
 archive/         historische Modulstaende, in keinem Build
 ```
 
-## Die sieben Varianten
+## Die sechs Varianten
 
 | `variants/<name>` | Version | FPGA | Quartus | Stand |
 |---|---|---|---|---|
-| `cyclone_ii` | 1.22 | EP2C5T144C8 | **13.0sp1** | aktiv, 94 % LE, baut über `WillFA7_cii` |
+| `cyclone_ii` | 1.22 | EP2C5T144C8 | **13.0sp1** | aktiv, 96 % LE, baut über `WillFA7_cii` |
 | `cyclone_iv_v3` | 2.22 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
 | `cyclone_iv_v4` | 3.22 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
 | `cyclone_10` | 4.22 | 10CL006YE144C8G | 22.1std | aktiv |
 | `cyclone_iv_dev_open` | 5.22 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
 | `s_cyclone_iv_v4` | 6.22 | EP4CE10E22C8 | 22.1std | aktiv, **mit Soundkarte** – `docs/soundcard_variant.md` |
-| `s_cyclone_10` | 7.14 | 10CL010YE144C6G | 22.1std | **ruht**, unfertig |
 
 Angezeigte Version = `BOARD_ID.SW_SUB1 SW_SUB2`. Erste Stelle aus
 `variants/<name>/variant_pkg.vhd`, die beiden anderen aus `rtl/common/version_pkg.vhd`.
-Ein Release ändert **eine** Zahl.
+Ein Release ändert **eine** Zahl. `BOARD_ID` 7 ist frei – es gehörte einer Cyclone-10-Fassung
+der Soundplatine, die am 04.08.2026 aufgegeben und aus dem Repo entfernt wurde.
 
 **Hardware-Teststand: nur 3.20 war getestet.** Weder `.21` noch `.22` ist auf einem Board
-getestet. `s_cyclone_10` ruht und baut nicht. Gründe in `VARIANTEN.md`.
+getestet. Gründe in `VARIANTEN.md`.
 
 ## Build
 
@@ -97,6 +97,12 @@ scripts\release.ps1 -Note "..."        # alles bauen, nach bin/ ablegen, changel
 
 `check.ps1` liefert Exit 1 bei Build-Fehler, Exit 2 bei Baseline-Abweichung.
 
+`check.ps1` und `build.ps1` rufen als Erstes `gen_qsf.ps1 -Quiet` auf (`release.ps1` erbt
+das über `build.ps1`), weil Quartus die generierte `.qsf` aus der IDE heraus von sich aus
+umschreibt. Musste dabei etwas zurückgesetzt werden, steht eine gelbe Zeile im Protokoll.
+`-NoGen` schaltet es ab. Wer in der IDE bewusst ein Assignment setzt – SignalTap –, muss
+es vorher ins passende `.tcl` übernehmen, sonst ist es beim nächsten Lauf weg.
+
 Der Arbeitsablauf drumherum – Quartus-IDE neben den Skripten, was die IDE nicht festlegen
 darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW.md`.
 
@@ -107,9 +113,10 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | Konstante | Bedeutung |
 |---|---|
 | `BOARD_ID` | erste Stelle der Versionsanzeige |
-| `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. **Bestimmt auch das SD-Kartenformat**: 5 = 10-KByte-Image ab 5800h, 6 = 12-KByte-Image ab 5000h. Ein falscher Wert bricht nicht den Build, sondern das Spiel beim Booten. |
+| `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. 5 heisst: kein rom0, Fenster 0 des Images wird gelesen und verworfen, 5000h–57FF liest FF, Defender und Star Light laufen nicht. **Seit `.22` kein Kartenformat mehr** – das ist für alle gleich. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
-| `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem das SD-Kartenformat (64-KByte-Slots mit CRC) und die DIP-Matrix. **`docs/soundcard_variant.md`** |
+| `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was die Bytes 12K–32K des Slots dekodiert. **`docs/soundcard_variant.md`** |
+| `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. Überall `true`; `false` spart auf Cyclone II ca. 90 LE, liest dieselbe Karte, merkt aber nichts von einer defekten und zeigt statt der beiden Summen weiter das Build-Datum. |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
 `VirtualPins`, `BinFolder`, `ReleaseArtifact`, `Dormant`, `TopEntity`.
@@ -163,11 +170,13 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 |---|---|---|
 | cpu68 | `rtl/common/cpu68.vhd` | Motorola 6800/6801 (OpenCores, John E. Kent, GPL), v0.85 |
 | pia6821 | `rtl/common/pia6821.vhd` | PIA, 5 Instanzen |
-| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes` – damit deckt **eine** Datei auch das 64-KByte-Format der Soundkarte ab |
+| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes`. Seit `.22` steht auf allen Varianten dasselbe drin: 128 Sektoren je Spiel, CRC über die ersten 32 KByte |
+| crc16_ccitt | `rtl/sound/crc16_ccitt.vhd` | LFSR für die Kartenprüfsumme. Liegt aus historischen Gründen unter `rtl/sound/`, gehört seit `.22` aber zu jedem Build |
 | EEprom | `rtl/common/EEprom.vhd` | SPI-EEPROM (M95256 / M95512), Spielstand |
 | williams_pll | `rtl/<familie>/williams_pll.vhd` | 50 MHz → 14,28 MHz |
 | ram / rom_2K / R5101 | `rtl/<familie>/` | System-RAM, ROM-Bloecke, CMOS-RAM |
-| boot_message | `rtl/common/boot_message.vhd` | Boot-/Diagnoseanzeige |
+| boot_message | `rtl/common/boot_message.vhd` | Boot-/Diagnoseanzeige, 6- **und** 7-stellig (`seven_digit`) |
+| game_pkg | `rtl/common/game_pkg.vhd` | was an der Spielnummer hängt: `has_7digit`, `is_system3` |
 | read_the_dips | `rtl/common/read_the_dips.vhd` | Spielauswahl über DIPs |
 | flipflops | `rtl/common/flipflops.vhd` | Flipper-Solenoide |
 | spec_sol_trigger | `rtl/common/spec_sol_trigger.vhd` | Spezialsolenoid-Trigger mit Entprellung |
@@ -237,12 +246,76 @@ Outhole, Eject Holes) – das ROM sieht „noch unten / Ball noch da" und feuert
 Herleitung und Masken je Spiel: `docs/switch_masks.md`, Matrizen: `docs/switch_matrix/`,
 Hintergrund: `docs/switch_debounce_analysis.md`. Nur Alien Poker ist hardwareverifiziert.
 
-## LED-Ausgänge sind keine LEDs
+## Displaytyp hängt an der Spielnummer (`rtl/common/game_pkg.vhd`)
 
-`LED_active` ist die **Blanking-Leitung** der Treiberplatine (IC13 74HCT240 `/OE` für die
-Switch-Strobes plus `/RESET` der fünf 74HCT273-Latches), `LED_status` ist das Display-Blanking.
-Nie für Status- oder Fehleranzeigen umwidmen – genau das war die `.17`–`.19`-Regression, siehe
-`docs/blanking_led_active.md`. Nur `LED_SD_Error` ist eine echte LED.
+Die Bootmeldung und der Soundtest sind das einzige, was der FPGA selbst auf die Anzeige
+schreibt; ab Bootphase 3 macht das Spiel-ROM die Strobes. Welche physische Stelle eine
+Strobe-Nummer trifft, hängt am Displaytyp:
+
+- **6-stellig** (Spiel 0–15): Strobe = Zeitschlitz, Statusziffern auf 6/7 (rechts) und
+  14/15 (links), alle vier auf dem **oberen** Nibble.
+- **7-stellig** (Spiel 16–31, also Algar, Alien Poker und alle SYS7): die Spielerstellen
+  liegen auf Strobe 1–7 und 9–15, die Statusziffern nur noch auf Strobe 0 und 8 – dort
+  **oberes Nibble = rechtes Paar, unteres = linkes Paar**.
+
+`boot_message` schaltet das über den Eingang `seven_digit` um; die sechs Zeichen stehen
+7-stellig rechtsbündig, die linke Stelle bleibt dunkel. Vollständige Tabelle, Quellen
+(PinMAME `s6.c`/`s7games.c`, LISY `lisy_w.c`) und die Spielliste: **`docs/display_layout.md`**.
+Für 16/17 (Algar, Alien Poker) steht die Hardwarebestätigung noch aus.
+
+`is_system3` aus demselben Package steuert Memory Protect und – auf der S-Platine – die
+Soundquelle. Beide Funktionen erwarten die **Spielnummer** `game_no = not game_select`,
+nicht den DIP-Rohwert. Genau diese Verwechslung hat `is_sys3` von `.16` bis `.22` konstant
+auf `'0'` gehalten.
+
+**Ein neuer Port an `boot_message` trifft immer zwei Instanzen** – die Bootmeldung im
+Top-Level und die des Soundtests in `rtl/sound/soundtest.vhd`.
+
+## SD-Karte: ein Format für alle (seit `.22`)
+
+Bis `.21` gab es drei Formate – 10 KByte ab 5800h (Cyclone II), 12 KByte ab 5000h (alle
+anderen) und 64 KByte mit CRC (WillFA7S). Seit `.22` gilt überall das dritte:
+
+```
+Slot je Spiel      128 Sektoren = 64 KByte, Spiel 0 ab Sektor 660
+                   -> Startsektor = 660 + Spielnummer * 128
+0x0000 - 0x2FFF    12 KByte   MPU-ROMs, 6 x 2K -> 5000h..7FFFh
+0x3000 - 0x7FFF    20 KByte   Soundkarten-ROMs, 5 x 4K (nur HAS_SOUND dekodiert sie)
+0x8000 - 0xFFFD               frei
+0xFFFE - 0xFFFF     2 Byte    erwartete CRC16-CCITT ueber die ersten 32 KByte
+```
+
+- **Die sechs 2K-Fenster sind auf jeder Variante dieselben.** Ein Board mit `ROM_COUNT = 5`
+  verschiebt nichts, es lässt Fenster 0 einfach liegen. Genau das war vorher anders, und es
+  ist der Grund, warum eine `.21`-Cyclone-II-Karte unter `.22` nicht mehr läuft.
+- **Gelesen wird immer der ganze Slot**, weil die erwartete Prüfsumme in den letzten beiden
+  Bytes steht. Das kostet rund **1 Sekunde mehr Bootzeit** (64 KByte statt 12 bei 400 kHz).
+  Nur mit `SD_CHECK_CRC = false` endet der Lauf nach `Read_Bytes`.
+- **Die gerechnete Summe steht auf `display3`, die gelesene auf `display4`.** Stimmen sie
+  nicht überein: Fehlerziffer `7` vorn auf `error_disp4`, Blinkcode 7 auf `LED_SD_Error`,
+  und die CPU wird **nicht** freigegeben.
+- Eine alte Karte meldet sich damit als CRC-Fehler statt stumm ein falsches Spiel zu laden.
+  Das ist die gewollte Diagnose, kein Defekt.
+
+Karten erzeugt `N:\Projekte\WillFA7\SD image WillFA7 (roms)\make_sd.bat` (ausserhalb des
+Repos). Slot 30 ist Defender, Slot 31 Star Light – beide brauchen die vollen 12 KByte und
+laufen deshalb nicht auf Cyclone II.
+
+## LED-Ausgänge mit Doppelfunktion
+
+Zwei der LED-Ausgänge treiben **eine LED und zugleich eine Steuerleitung**. Genau das macht sie
+gefährlich: sie sehen aus wie freie Anzeigen und sind es nicht.
+
+| Port | LED auf der Platine | zweite Funktion auf derselben Leitung |
+|---|---|---|
+| `LED_active` | „active" | IC13 74HCT240 `/OE` (Switch-Strobes) **und** über T9 `/RESET` der fünf 74HCT273 – Solenoid- und Lampenlatches |
+| `LED_status` | „status" | Display-Blanking |
+| `LED_SD_Error` | „SD card error" | keine – reine LED, blinkt die Fehlercodes 1–7 |
+| `LED_debug` | – | nur Devboards, folgt `reset_sw` |
+
+**`LED_active` und `LED_status` nie für Status- oder Fehleranzeigen umwidmen.** Wer dort etwas
+anzeigt, löscht dabei die Solenoid- und Lampenlatches bzw. blankt das Display – genau das war die
+`.17`–`.19`-Regression. Schaltbild, Symptome und Fix: `docs/blanking_led_active.md`.
 
 ## EEprom-Save-Pfad (`rtl/common/EEprom.vhd`)
 
@@ -277,7 +350,10 @@ Diese `Warning (10036)` sind bekannt und in Ordnung. Kommt eine andere dazu, ist
 | `RX_Data_W` / `RX_Data_Cmd` (EEprom) | Altbestand im Modul |
 | `wr_rom0` never read (nur `cyclone_ii`) | rom0 ist per `ROM_COUNT` weggeneriert |
 | `parameter` (WillFA7_Monitor, nur `cyclone_iv_v3`) | Altbestand im Monitor |
-| `crc16`, `crc16_r`, `crc_error` (alle ausser `s_cyclone_iv_v4`) | die CRC-Ports von `SD_Card` sind ohne Soundkarte konstant und werden von niemandem gelesen |
+
+Die drei Warnungen zu `crc16`, `crc16_r` und `crc_error` sind seit `.22` **weg** – die Summen
+stehen jetzt auf der Bootanzeige jeder Variante. Sie kämen zurück, wenn ein Board
+`SD_CHECK_CRC = false` bekäme.
 
 ## Die Soundkarten-Variante
 
@@ -291,8 +367,9 @@ Sound-spezifische hängt an `HAS_SOUND`. Drei Dinge, die man wissen muss, bevor 
   stehen *alle* `rtl/sound/`-Dateien in `files_common.tcl`, also in jeder `.qsf`. Aus demselben
   Grund sind `MPU_RAM` und `SB_ROM` inferiertes VHDL und keine Megafunctions – eine für
   Cyclone IV E erzeugte Megafunction hat im Cyclone-II-Projekt nichts zu suchen.
-- **Die S-Platine braucht ein anderes SD-Kartenformat** (64-KByte-Slots ab Sektor 660, CRC16 auf
-  0xFFFE/0xFFFF). Eine Standardkarte bootet dort nicht und umgekehrt.
+- **Das SD-Kartenformat der S-Platine ist seit `.22` das Format für alle** – 64-KByte-Slots ab
+  Sektor 660, CRC16 auf 0xFFFE/0xFFFF. Die Bytes 12K–32K liest nur diese Platine wirklich;
+  die anderen lesen sie mit und werfen sie weg. Siehe Abschnitt „SD-Karte" oben.
 - **Der Kern ist Fremdcode mit eigener Versionsgeschichte.** Er stammt aus
   `N:\Projekte\Soundboards\FPGA Soundboard Williams\WISOF` und steht auf **0.9**. Wer ihn
   weiterzieht, nimmt nicht einfach die Datei von dort – die dortige Fassung ist eine

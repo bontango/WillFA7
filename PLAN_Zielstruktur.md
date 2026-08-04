@@ -134,14 +134,12 @@ Zwei Dinge kamen dabei anders als gedacht:
   auch im nicht genommenen Zweig auflöst, müssten die Sound-Speicher in *jeder* `.qsf` stehen –
   auch in der von Cyclone II. Eine für Cyclone IV E erzeugte Megafunction hat dort nichts zu
   suchen, also sind `MPU_RAM` und `SB_ROM` jetzt inferiertes VHDL. Nebeneffekt: die Sound-Sektion
-  ist damit familienunabhängig, was `s_cyclone_10` den Weg ebnet.
+  ist damit familienunabhängig und an keine FPGA-Familie mehr gebunden.
 
 ## 7. Was offen bleibt
 
 - **Hardwaretest von `.22`** – auf keinem Board erfolgt, der letzte getestete Stand ist 3.20.
   Prüfliste in `VARIANTEN.md` Abschnitt 5.
-- **`s_cyclone_10`**: unfertig, 0 Pin-Zuweisungen, `Error (10349)` auf `Audio_O`. Der Weg ist
-  jetzt vorgezeichnet – `HAS_SOUND` gibt es, die Sound-Speicher sind familienunabhängig.
 - **`variants/cyclone_ii/WillFA7.sdc`** ist eine von Quartus 13 generierte Datei, kein
   handgeschriebener Constraint-Satz wie bei den anderen. Seit `.22` muss dort zusätzlich der
   Hüllen-Präfix von Hand gepflegt werden.

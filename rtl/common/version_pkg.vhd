@@ -15,7 +15,8 @@
 --   .22  the sound board variant joins the shared top level (HAS_SOUND), one
 --        SD_Card for all, and Cyclone II gets the WillFA7_cii board shell because
 --        VIRTUAL_PIN does not work on Quartus 13.0sp1 Web Edition - four pins of
---        the EP2C5 that 1.21 drove are free again
+--        the EP2C5 that 1.21 drove are free again. Plus the boot message on six AND
+--        seven digit player displays (docs/display_layout.md) and the is_sys3 fix
 --
 library ieee;
 use ieee.std_logic_1164.all;

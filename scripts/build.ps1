@@ -17,7 +17,11 @@
   Variant folder names. Default: all active ones.
 
 .PARAMETER All
-  Include the variants marked dormant. They are known not to build.
+  Include the variants marked Dormant in their variant.psd1. None is today.
+
+.PARAMETER NoGen
+  Do not regenerate the .qsf first. Only for deliberately building a hand edited
+  one - the next run without the switch throws that edit away again.
 
 .EXAMPLE
   .\build.ps1 cyclone_iv_v4
@@ -28,12 +32,19 @@
 param(
     [Parameter(Position = 0)]
     [string[]]$Variants,
-    [switch]  $All
+    [switch]  $All,
+    [switch]  $NoGen
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
 $VarRoot   = Join-Path $RepoRoot 'variants'
+
+# See check.ps1: Quartus writes into the generated .qsf on its own once the project
+# has been open in the IDE. A release image must come out of the checked in sources,
+# so regenerate first. Silent unless something actually had to be put back.
+# release.ps1 gets this for free - it builds through this script.
+if (-not $NoGen) { & (Join-Path $ScriptDir 'gen_qsf.ps1') -Quiet }
 
 $QuartusBin = [ordered]@{
     'Cyclone II' = 'C:\altera\13.0sp1\quartus\bin64'

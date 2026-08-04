@@ -75,12 +75,11 @@
 --          5.21 dev_open      4468 / 6272  110592   6.209 ns
 --        NOT TESTED IN HARDWARE - not on any board, including 3.21. The last hardware
 --        tested build is 3.20.
---        The two sound variants are functionally unchanged and stay dormant, but fixing
---        their file paths during the move had a side effect: 6.03 (s_cyclone_iv_v4)
+--        The sound variant is functionally unchanged and stays dormant, but fixing its
+--        file paths during the move had a side effect: 6.03 (s_cyclone_iv_v4)
 --        BUILDS AGAIN - 5392 / 10320 logic elements, 273408 memory bits, 3.600 ns.
 --        The Error (10349) that was recorded for it was only a consequence of two source
 --        files missing from the project. It is still on function level .03 and untested.
---        7.14 (s_cyclone_10) still does not build and has no pin assignments at all.
 -- vx.22 08.2026 the sound board variant joins the shared source tree.
 --        This is a real function step, unlike x.21. Four things changed, and the third
 --        one affects a board that is already out in the field.
@@ -162,12 +161,13 @@
 --           Full write up: docs/soundcard_variant.md, section 14.
 --
 --        Resources on .22 (logic elements / memory bits / worst setup slack):
---          1.22 Cyclone II    4322 / 4608    94208  3.434 ns   82 of 89 pins
---          2.22 Cyclone IV v3 5033 / 6272   110592  6.215 ns
---          3.22 Cyclone IV v4 4476 / 6272   110592  6.025 ns
---          4.22 Cyclone 10    4488 / 6272   110592  6.264 ns
---          5.22 dev_open      4477 / 6272   110592  6.809 ns
---          6.22 WillFA7S      6303 / 10320  275456  5.772 ns  (after the sb_option fix below)
+--          1.22 Cyclone II    4312 / 4608    94208  3.756 ns   82 of 89 pins
+--          2.22 Cyclone IV v3 5015 / 6272   110592  6.333 ns
+--          3.22 Cyclone IV v4 4494 / 6272   110592  6.390 ns
+--          4.22 Cyclone 10    4480 / 6272   110592  6.139 ns
+--          5.22 dev_open      4472 / 6272   110592  6.841 ns
+--          6.22 WillFA7S      6377 / 10320  275456  6.358 ns
+--        (measured 03.08.2026, after the two fixes below)
 --        The sound blocks cost the five boards without a sound card nothing: the step that
 --        moved them into the shared top level went through with exactly unchanged numbers,
 --        and not a single sound node appears in their hierarchy.
@@ -188,3 +188,63 @@
 --        the way S1 and S2 always did. The user manual said Dip1 = 32 for the game options
 --        S2 - that was simply wrong and is corrected too. See docs/soundcard_variant.md,
 --        section 3.
+--
+--        Also added to .22 before it shipped, all boards:
+--
+--        THE BOOT MESSAGE NOW WORKS ON SIX AND ON SEVEN DIGIT PLAYER DISPLAYS. It used to
+--        be wired to the six digit strobe map, so on a machine with seven digit displays
+--        every character sat one position off and the option values did not land on the
+--        credit display at all - they showed up on the right hand digits of player 1 and
+--        player 2. boot_message got an input 'seven_digit': the six characters move two
+--        strobes up (right aligned, the leftmost digit stays dark) and the four status
+--        digits move from strobe 6/7/14/15 to strobe 0 and 8, two per nibble instead of
+--        four on the high one - high nibble is the right pair, low nibble the left one,
+--        so the sound board options stay left and the game options right. Which display a
+--        game has comes from the game number: the new rtl/common/game_pkg.vhd says 16..31,
+--        that is Algar, Alien Poker and every System 7 game. Derived from PinMAME
+--        (s6games.c, s7games.c) and cross checked against lisy_w.c. Full strobe map, the
+--        sources and the game list: docs/display_layout.md. Nothing to set on the board.
+--        Still to confirm on hardware: Algar and Alien Poker, the two System 6 games that
+--        already had seven digit displays.
+--
+--        FIX 'is_sys3', all boards. The System 3/4 detection compared the RAW DIP value
+--        instead of the game number: 'game_select <= "001000"' while the DIPs are active
+--        low, so game 0..8 read 63..55 there. The condition was true for no game that
+--        exists - is_sys3 had been stuck at '0' since .16. Two things never took effect
+--        because of it: the memory protect exception for System 3/4 (fix 3 of v3.16, the
+--        CMOS area 0180-01FF stayed write protected without an open coin door) and, on
+--        the WillFA7S, the SYS3 sound source from solenoids 9..13. Both now go through
+--        game_no = not game_select and game_pkg. NOTE that this arms two paths for the
+--        first time - test a System 3/4 game.
+
+--        Also added to .22 before it shipped, all boards:
+
+--        ONE SD CARD FORMAT FOR EVERY BOARD, AND THE CRC CHECK EVERYWHERE. Until .21
+--        there were three layouts: 10 KByte per game from 5800h (Cyclone II), 12 KByte
+--        from 5000h (Cyclone IV, Cyclone 10) and 64 KByte with a CRC16 (WillFA7S). Now
+--        every board reads the WillFA7S layout - 128 sectors per game from sector 660,
+--        game roms in the first 12 KByte, sound board roms up to 32 KByte, the expected
+--        CRC16-CCITT in the last two bytes of the slot. A board without a sound board
+--        reads the sound block and drops it; a board with five rom blocks (Cyclone II)
+--        leaves window 0 of the image unwritten instead of shifting the other five down,
+--        which is exactly what the old 10 KByte image needed.
+--
+--        *** YOUR OLD SD CARD WILL NOT RUN ON .22. *** It reports error code 7 (CRC
+--        mismatch) instead of starting a game, which is the intended behaviour - a wrong
+--        game image is worse than a clear error. Write the current image to the card.
+--        While reading, the computed checksum is on player display 3 and the one stored
+--        on the card on player display 4; they have to be identical. That replaces the
+--        fixed build date those two displays used to show. On a mismatch the error
+--        display gets a leading 7, LED_SD_Error blinks code 7 and the CPU is not started.
+--
+--        Cost: 53 to 92 logic elements depending on the board (Cyclone II 4312 -> 4404 of
+--        4608, it fits with 204 to spare) and about one second more boot time, because
+--        the whole 64 KByte slot has to be read for the checksum. s_cyclone_iv_v4 is
+--        unchanged to the digit in both logic elements and slack - it already read this
+--        format, which is what makes the change verifiable. Per board switch for the
+--        check: SD_CHECK_CRC in variants/<name>/variant_pkg.vhd, on everywhere.
+--
+--        Side effect on the card content: slot 31 now holds Star Light instead of
+--        WildTexas, the way the manuals and the switch matrix documentation have always
+--        described it. Cards are written with 'make_sd.bat'. Defender and Star Light need
+--        the full 12 KByte of game rom and therefore still do not run on Cyclone II.

@@ -27,6 +27,11 @@
   Do not write. Compare the generated content against the .qsf on disk and report
   the difference. Exit code 1 if anything differs.
 
+.PARAMETER Quiet
+  Write as usual, but only report the variants whose .qsf did not already match -
+  in other words, the ones something outside gen_qsf had changed. For the calls at
+  the head of check.ps1 / build.ps1, where the normal six line list is just noise.
+
 .EXAMPLE
   .\gen_qsf.ps1
 
@@ -35,7 +40,8 @@
 #>
 param(
     [string[]]$Variants,
-    [switch]  $Check
+    [switch]  $Check,
+    [switch]  $Quiet
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -51,9 +57,9 @@ function Read-Fragment([string]$Path) {
 
 $folders = Get-ChildItem $VarRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'variant.psd1') }
 if ($Variants) { $folders = $folders | Where-Object { $Variants -contains $_.Name } }
-# The dormant sound variants carry their own top level and their own frozen copies of
-# the common modules, so they do not fit this model. Their .qsf stays hand maintained
-# and is marked Generated = $false. Never overwrite it from here.
+# A variant with its own top level or its own frozen module copies does not fit this
+# model; its .qsf stays hand maintained and is marked Generated = $false. No variant is
+# in that state today - the escape hatch is kept for the next unfinished board.
 $folders = $folders | Where-Object {
     $meta = Import-PowerShellDataFile (Join-Path $_.FullName 'variant.psd1')
     -not ($meta.ContainsKey('Generated') -and -not $meta.Generated)
@@ -128,8 +134,17 @@ foreach ($dir in $folders) {
             $d | ForEach-Object { Write-Host ("      {0} {1}" -f $_.SideIndicator, $_.InputObject) }
         }
     } else {
+        $had = if (Test-Path $qsf) { [System.IO.File]::ReadAllText($qsf) } else { '' }
         [System.IO.File]::WriteAllText($qsf, $text, $enc)
-        Write-Host ("  {0,-22} written ({1} lines)" -f $meta.Name, $out.Count) -ForegroundColor Green
+        if ($Quiet) {
+            # Worth a line: the file on disk was not what this script produces, so
+            # somebody - in practice Quartus - had written into a generated file.
+            if ($had -ne $text) {
+                Write-Host ("  {0,-22} .qsf rewritten, it had been changed outside gen_qsf" -f $meta.Name) -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host ("  {0,-22} written ({1} lines)" -f $meta.Name, $out.Count) -ForegroundColor Green
+        }
     }
 }
 

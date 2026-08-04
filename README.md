@@ -7,11 +7,11 @@ The board loads the game ROMs from an SD card, keeps the game settings in an SPI
 EEPROM and drives the original driver board, displays, switch matrix and solenoids
 of the machine.
 
-## One design, seven boards
+## One design, six boards
 
-The same design runs on seven different FPGA boards. They share **one** top level
+The same design runs on six different FPGA boards. They share **one** top level
 (`top/WillFA7.vhd`) and one source tree; what differs per board is a handful of pin
-locations, the FPGA device and four constants in `variants/<name>/variant_pkg.vhd`.
+locations, the FPGA device and five constants in `variants/<name>/variant_pkg.vhd`.
 
 One of the boards, the WillFA7S, carries a complete Williams sound board on the same FPGA -
 a second 6802 with its own ROMs, a delta sigma DAC and a CVSD speech decoder. That is the
@@ -19,13 +19,12 @@ a second 6802 with its own ROMs, a delta sigma DAC and a CVSD speech decoder. Th
 
 | Variant | Version | FPGA | Quartus | State |
 |---|---|---|---|---|
-| `cyclone_ii` | 1.22 | EP2C5T144C8 | 13.0sp1 | active, 94 % logic elements |
+| `cyclone_ii` | 1.22 | EP2C5T144C8 | 13.0sp1 | active, 96 % logic elements |
 | `cyclone_iv_v3` | 2.22 | EP4CE6F17C8 | 22.1std | active, has the USB monitor API |
 | `cyclone_iv_v4` | 3.22 | EP4CE6E22C8 | 22.1std | active, **lead variant** |
 | `cyclone_10` | 4.22 | 10CL006YE144C8G | 22.1std | active |
 | `cyclone_iv_dev_open` | 5.22 | EP4CE6E22C8 | 22.1std | active, off-the-shelf dev board |
 | `s_cyclone_iv_v4` | 6.22 | EP4CE10E22C8 | 22.1std | active, **integrated sound board** |
-| `s_cyclone_10` | 7.14 | 10CL010YE144C6G | 22.1std | dormant, unfinished |
 
 The displayed version is `BOARD_ID.SW_SUB1 SW_SUB2`: the first digit identifies the
 board (`variants/<name>/variant_pkg.vhd`), the last two are the common function

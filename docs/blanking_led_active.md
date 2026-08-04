@@ -21,9 +21,20 @@ FPGA PIN_3 (LED_active) ─┬─> "active"-LED auf dem FPGA-Board
   Williams-Diag-LED aus (haengt in FF3 der Lamp-Latches, `WillFA7.vhd`, `FF_LAMPSS`)
 * die Switch-Strobes sind ueber `/OE` von IC13 abgeschaltet → Matrix tot
 
-Das **Display bleibt dabei unberuehrt** — dessen Blanking laeuft ueber `LED_status`
-(`LED_status <= not boot_phase(0); -- for display blanking`). Genau diese Kombination
-(Spulen/Lampen aus, Display stabil) ist die Signatur eines Blanking-Einbruchs.
+Das **Display bleibt dabei unberuehrt** — dessen Blanking laeuft ueber `LED_status`, und zwar
+nach demselben Muster:
+
+```
+FPGA LED_status ─┬─> "status"-LED auf dem FPGA-Board
+                 └─> Display-Blanking
+```
+
+`LED_status <= not boot_phase(0);` — auch dieser Pin ist also LED *und* Steuerleitung und darf
+genauso wenig umgewidmet werden. Genau diese Kombination (Spulen/Lampen aus, Display stabil) ist
+die Signatur eines Blanking-Einbruchs.
+
+Beide LEDs sind auf `Blanking_wire_v05_new.png` mit Vorwiderstand zu sehen, beschriftet „active"
+und „status". Nur `LED_SD_Error` ist eine LED ohne Nebenfunktion.
 
 Quelle: `N:\Projekte\WillFA7\doc\bugsv5.txt` ("Blanking ohne Treiber -> active LED!",
 "Blanking fuer displays? -> LED"), `N:\Projekte\WillFA7\doc\Blanking_wire_v05_new.png`.

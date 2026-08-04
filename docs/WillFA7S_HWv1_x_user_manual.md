@@ -10,7 +10,7 @@
 
 ralf@lisy.dev
 
-v1.22 02.08.2026
+v1.22 04.08.2026
 
 ## Table of contents
 
@@ -67,7 +67,7 @@ The FPGA is a Cyclone IV EP4CE10 - bigger than the one on the plain WillFA7 boar
 
 **Two things are different from the very start, please read them before you begin:**
 
-- **The SD card is not the same.** WillFA7S needs its own image with 64 KByte per game instead of 12, because the sound board roms travel on the card as well. A WillFA7 card does not boot here, and a WillFA7S card does not boot on a WillFA7. See chapter 9.
+- **The SD card is the same one every WillFA7 uses** - since software version .22. The layout with 64 KByte per game started here, because the sound board roms travel on the card as well, and it is now the layout of all boards. A card written for .21 or older does not boot on any of them. See chapter 9.
 
 - **There is one more DIP bank**, S5 with four switches, for the sound board options. See chapter 4.3.
 
@@ -185,6 +185,12 @@ The option value is formed like this: each switch that is 'ON' adds its weight.
 This is the same counting as the game select switch S1 in appendix A: Dip1 is always the
 one that counts 1.
 
+**Seven digit displays.** Games marked `SYS6A` or `SYS7` in appendix A came with seven
+digit player displays instead of six. WillFA7S knows this from the game number and moves
+the boot message accordingly: the text stands right aligned, the leftmost digit of each
+player display stays dark, and the options keep their place on the credit display. Nothing
+has to be set for this.
+
 ### 5.2. Phase 2: SD card read
 
 WillFA7S reads 64 KByte from the card: the game roms, the sound board roms and the checksum. If this fails the red LED 'SD card error' will go ON and '56' will be shown on display 4.
@@ -283,13 +289,13 @@ You will find there:
 
 - which programmer software you need, how to install the driver for the USB Blaster and how to program the FPGA
 
-**Make sure you take the WillFA7S versions of both** - the FPGA program shows a version starting with 6, and the SD card image is the one with 64 KByte per game.
+**Make sure you take the WillFA7S version of the FPGA program** - it shows a version starting with 6. The SD card image is the same one all WillFA7 boards use since .22.
 
 ## 9. Structure of SD card
 
 Due to limitations of the SD card read routine in the FPGA (it does read fix sector numbers instead of looking for filenames) it is necessary to use my SD-card image. You can write the image to a SD-card of your choice.
 
-The first slot starts at sector 660, as on WillFA7. **The slot size is the difference:** 128 sectors of 512 bytes, that is 64 KByte per game, instead of 24 sectors / 12 KByte. The slot of a game starts at sector 660 + game number x 128.
+The first slot starts at sector 660 and a slot is 128 sectors of 512 bytes, that is 64 KByte per game. The slot of a game starts at sector 660 + game number x 128. Since software .22 this is the layout of every WillFA7 board, not only of this one - the other boards read the game roms out of the first 12 KByte and skip the rest of the slot.
 
 ### 9.1. Slot layout
 
@@ -300,11 +306,11 @@ The first slot starts at sector 660, as on WillFA7. **The slot size is the diffe
 0xFFFE - 0xFFFF    2 Byte    checksum (CRC16-CCITT) over the first 32 KByte
 ```
 
-The first 12 KByte are bit for bit the same as in a WillFA7 image - only the slot around them is bigger.
+The sound board roms sit on every card, also on the ones used with boards that have no sound board - those read the block and throw it away. That is what makes one image work everywhere.
 
 ### 9.2. The CRC
 
-WillFA7S computes a checksum over the game data while it reads the card and compares it with the value stored in the last two bytes of the slot.
+WillFA7S computes a checksum over the game data while it reads the card and compares it with the value stored in the last two bytes of the slot. Since .22 every WillFA7 board does this.
 
 - during boot the computed value is on player display 3 and the stored value on player display 4, **they must be identical**
 - if they differ, the red 'SD card error' LED blinks the code **7**, the error display shows a leading **7**, and **the game does not start**
@@ -359,3 +365,7 @@ Write your rom set to the position given above with a sector editor. It is read 
 |     31 | on     | on     | on     | on     | on     | off    | SYS7     | Star Light      |
 
 (\*) sound support is incomplete for these games, see chapter 7.5
+
+The **type** column also says which player displays the game came with: `SYS3`, `SYS4` and
+`SYS6` are six digit, `SYS6A` (Algar and Alien Poker) and `SYS7` are seven digit. WillFA7S
+places its boot message according to that, see chapter 5.1.

@@ -4,6 +4,8 @@
 -- v 1.0 -- initial version
 -- v 1.1 07.2026 moved from variants/s_cyclone_iv_v4/local/ into the shared tree.
 --       No functional change.
+-- v 1.2 08.2026 'seven_digit' passed through to the boot_message instance below, so
+--       the sound number lands on the player display on a seven digit machine too.
 --
 -- Steps through the sound numbers with Diag_SW and plays the current one with
 -- Enter_SW while SB_Test is pulled. Takes over the display for as long as it runs;
@@ -18,9 +20,11 @@ use IEEE.numeric_std.all;
             clk_in  : in std_logic;               						
 				i_Rst_L : in std_logic;   
 				-- input
-				activate  : in std_logic; 
+				activate  : in std_logic;
 				step  : in std_logic; -- sound plus one
 				play  : in std_logic; -- play current sound
+				-- display type of the selected game, just passed on to boot_message
+				seven_digit : in std_logic;
 				--output 
 				is_active	: buffer std_logic;    
 				
@@ -105,6 +109,7 @@ port map(
    show  => is_active,
 	--show error
 	is_error => '1', --active low
+	seven_digit => seven_digit,
 	-- output
 	strobe	=> strobe,
 	bcd	=> bcd,

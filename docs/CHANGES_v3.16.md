@@ -32,6 +32,14 @@ pia1_cb1 <= up_down when is_sys3 = '1'
 
 **Hinweis:** `game_select` wird an SD-Card/EEPROM invertiert übergeben (`not game_select`, Zeile 361/392). Der Vergleich `<= "001000"` verwendet den direkten DIP-Wert. Bitte verifizieren, dass die DIP-Werte 0-8 tatsächlich den System3/4-Spielen entsprechen.
 
+> **Nachtrag 03.08.2026 – verifiziert, und der Hinweis hatte recht:** sie entsprechen ihnen
+> nicht. Die DIPs sind active low, Spiel 0–8 hat `game_select` = 63–55, der Vergleich traf für
+> kein existierendes Spiel zu. `is_sys3` war von `.16` bis in den `.22`-Umbau hinein konstant
+> `'0'`; Fix 3 dieses Dokuments war damit wirkungslos. (Fix 1, die CA1/CB1-Umschaltung, steht
+> im Top-Level ohnehin auskommentiert.) Seit `.22` läuft die Ableitung über
+> `game_no = not game_select` und `rtl/common/game_pkg.vhd`. Siehe `VARIANTEN.md`
+> Abschnitt 3b.
+
 ---
 
 ### Fix 2: Special Solenoid Reset aktivieren

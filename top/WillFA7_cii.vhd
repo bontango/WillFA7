@@ -50,8 +50,9 @@ entity WillFA7_cii is
 		reset_sw  : in std_logic; 	--goes Low on reset(push)
 		LED_SD_Error 	: out STD_LOGIC;
 
-		-- CAREFUL: not plain LEDs. LED_active is the driver board blanking line,
-		-- LED_status the display blanking - see docs/blanking_led_active.md.
+		-- CAREFUL: LED and control line on the same pin. LED_active also is the driver
+		-- board blanking, LED_status also the display blanking - never repurpose them,
+		-- see docs/blanking_led_active.md.
 		LED_active 	: out STD_LOGIC;
 		LED_status 	: out STD_LOGIC;
 

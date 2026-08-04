@@ -37,22 +37,35 @@ generierte Datei und wird vom nächsten `gen_qsf.ps1` überschrieben.
 
 Danach `scripts\gen_qsf.ps1` und die Änderung steht in allen betroffenen Varianten.
 
-**Nach einer IDE-Sitzung einmal `scripts\gen_qsf.ps1 -Check` laufen lassen.** Quartus
-schreibt die `.qsf` bei manchen Aktionen von sich aus um. Der Check meldet in Sekunden,
-ob die Datei von der generierten Fassung abweicht:
+**Quartus schreibt die `.qsf` bei manchen Aktionen von sich aus um** – im August 2026
+hat es `s_cyclone_iv_v4` eine zweite `PARTITION_HIERARCHY`-Zeile ans Dateiende gehängt,
+obwohl dieselbe Zuweisung längst aus `common_header.tcl` oben in der Datei stand. Das
+lässt sich nicht verhindern; wer die Datei schreibgeschützt setzt, bekommt statt dessen
+einen abgebrochenen Compile.
 
-- Abweichung nicht gewollt → `scripts\gen_qsf.ps1` ausführen, überschreibt sie.
-- Abweichung gewollt → ins passende `.tcl` übernehmen, dann generieren.
+Deshalb **regenerieren `check.ps1` und `build.ps1` die `.qsf` als Erstes selbst**
+(`gen_qsf.ps1 -Quiet`), `release.ps1` erbt das über `build.ps1`. Der Drift ist damit weg,
+bevor Quartus startet – und wenn wirklich etwas zurückgesetzt werden musste, steht eine
+gelbe Zeile im Protokoll. `-NoGen` schaltet es ab, für den seltenen Fall, dass man eine
+handgeänderte `.qsf` absichtlich bauen will.
 
-**Ausnahme: die beiden ruhenden Sound-Varianten.** `s_cyclone_iv_v4` und `s_cyclone_10`
-stehen in `variant.psd1` auf `Generated = $false`. Ihre `.qsf` ist handgepflegt und wird
-von `gen_qsf.ps1` nie angefasst – dort ist die IDE auch für Assignments der normale Weg.
+Wer nur nachsehen will, ohne zu bauen: `scripts\gen_qsf.ps1 -Check` meldet in Sekunden,
+ob eine Datei von der generierten Fassung abweicht, und zeigt die Diff-Zeilen.
+
+- Abweichung nicht gewollt → nichts tun, der nächste Skriptlauf räumt sie weg.
+- Abweichung gewollt → ins passende `.tcl` übernehmen, dann generieren. **Sonst ist sie
+  beim nächsten `check.ps1` verloren** – das gilt besonders für SignalTap.
+
+Ausnahmen gibt es derzeit keine: **jede** Variante wird generiert. Für den Fall, dass wieder
+eine dazukommt, die es nicht wird, kennt `variant.psd1` weiterhin `Generated = $false` –
+`gen_qsf.ps1` lässt solche Ordner unangetastet, und dort ist die IDE auch für Assignments der
+normale Weg.
 
 ## Eine Änderung von Anfang bis Ende
 
 1. **Ändern** in `rtl\common\` oder `top\WillFA7.vhd` – im Quartus-Editor oder in einem
    beliebigen anderen. Beides sind normale Dateien.
-   *Achtung:* `rtl\common\` gilt für **alle sieben** Varianten. Das ist der Sinn des
+   *Achtung:* `rtl\common\` gilt für **alle sechs** Varianten. Das ist der Sinn des
    Monorepos und zugleich das Risiko – eine Änderung trifft auch Boards, die du gerade
    nicht im Blick hast.
 2. **Bauen und in Hardware testen**: `scripts\build.ps1 cyclone_iv_v4` (Leitvariante).

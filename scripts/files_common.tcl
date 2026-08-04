@@ -3,6 +3,7 @@
 # The packages come first so the analyser never has to guess the order.
 set_global_assignment -name VHDL_FILE variant_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/version_pkg.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/game_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/AM8T28.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/boot_message.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/byte_to_decimal.vhd

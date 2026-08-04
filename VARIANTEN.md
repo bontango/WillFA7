@@ -1,12 +1,12 @@
 # WillFA7 – Varianten-Übersicht
 
-Stand: 02.08.2026 · Ergänzt `CLAUDE.md` (dort steht die Architektur, hier die Varianten).
+Stand: 04.08.2026 · Ergänzt `CLAUDE.md` (dort steht die Architektur, hier die Varianten).
 
 **Etappe 2 aus `PLAN_Zielstruktur.md` ist umgesetzt, und seit `.22` auch der Nachzug der
-Soundkarten-Variante.** Sechs Varianten bauen aus **einem** `top/WillFA7.vhd` und **einem**
-`rtl/`-Baum, ihre `.qsf` werden generiert. Nur `s_cyclone_10` ruht noch (Abschnitt 4).
+Soundkarten-Variante.** Alle sechs Varianten bauen aus **einem** `top/WillFA7.vhd` und **einem**
+`rtl/`-Baum, ihre `.qsf` werden generiert. Sonderfälle gibt es keine mehr.
 
-## 1. Die sieben Ausprägungen
+## 1. Die sechs Ausprägungen
 
 | `variants/<name>` | Version | FPGA | Familie | Sound | Status |
 |---|---|---|---|---|---|
@@ -16,12 +16,15 @@ Soundkarten-Variante.** Sechs Varianten bauen aus **einem** `top/WillFA7.vhd` un
 | `cyclone_10` | **4.22** | 10CL006YE144C8G | Cyclone 10 LP | – | aktiv |
 | `cyclone_iv_dev_open` | **5.22** | EP4CE6E22C8 | Cyclone IV E | – | aktiv, Aliexpress-Devboard |
 | `s_cyclone_iv_v4` | **6.22** | EP4CE10E22C8 | Cyclone IV E | ja | **aktiv** seit `.22` |
-| `s_cyclone_10` | **7.14** | 10CL010YE144C6G | Cyclone 10 LP | ja | **ruht**, unfertig, baut nicht |
+
+`BOARD_ID` 7 ist frei. Es gehörte einer Cyclone-10-Fassung der Soundplatine, die nie fertig
+wurde – kein Build, keine Pin-Zuweisungen, eigenes Top-Level mit eingefrorenen Modulkopien.
+Am **04.08.2026** aufgegeben und aus dem Repo entfernt; in der Git-Historie liegt sie weiter.
 
 Versionsschema: **erste Stelle = Board**, zweite und dritte = gemeinsamer Funktionsstand.
 Quelle: `BOARD_ID` in `variants/<name>/variant_pkg.vhd` und `SW_SUB1`/`SW_SUB2` in
-`rtl/common/version_pkg.vhd`. Seit `.22` gilt das auch für `s_cyclone_iv_v4`; nur `s_cyclone_10`
-trägt seine Version noch als Konstante im eigenen Top-Level.
+`rtl/common/version_pkg.vhd`. Seit `.22` gilt das für jede Variante, `s_cyclone_iv_v4`
+eingeschlossen.
 
 Funktionsstände: `.17` EEprom-Write-Robustness · `.18` Switch-Debouncer · `.19`
 Spec-Sol-Debounce über DIP4 · `.20` Switch-Debounce-Maske spielabhängig + Fix `LED_active` =
@@ -35,16 +38,16 @@ erst nach bestandenem Hardwaretest – und dann **ohne** `-Note`, weil der `.22`
 
 ## 2. Ressourcen auf Funktionsstand `.22`
 
-Gemessen 02.08.2026, `check.ps1 -Fit`:
+Gemessen 03.08.2026, `check.ps1 -Fit`:
 
 | Variante | Logic Elements | Memory Bits | Pins | Slack | vorher (`.21`) |
 |---|---|---|---|---|---|
-| `cyclone_ii` | 4.322 / 4.608 (**94 %**) | 94.208 / 119.808 | 82 / 89 | 3,434 ns | 4.313 LE, 86 Pins |
-| `cyclone_iv_v3` | 5.033 / 6.272 (80 %) | 110.592 / 276.480 | 85 / 180 | 6,215 ns | 5.019 LE |
-| `cyclone_iv_v4` | 4.476 / 6.272 (71 %) | 110.592 / 276.480 | 82 / 92 | 6,025 ns | 4.469 LE |
-| `cyclone_10` | 4.488 / 6.272 (72 %) | 110.592 / 276.480 | 82 / 89 | 6,264 ns | 4.473 LE |
-| `cyclone_iv_dev_open` | 4.477 / 6.272 (71 %) | 110.592 / 276.480 | 83 / 92 | 6,809 ns | 4.469 LE |
-| `s_cyclone_iv_v4` | 6.303 / 10.320 (61 %) | 275.456 / 423.936 | 82 / 92 | 5,772 ns | 5.392 LE auf `.03` |
+| `cyclone_ii` | 4.312 / 4.608 (**94 %**) | 94.208 / 119.808 | 82 / 89 | 3,756 ns | 4.313 LE, 86 Pins |
+| `cyclone_iv_v3` | 5.015 / 6.272 (80 %) | 110.592 / 276.480 | 85 / 180 | 6,333 ns | 5.019 LE |
+| `cyclone_iv_v4` | 4.494 / 6.272 (72 %) | 110.592 / 276.480 | 82 / 92 | 6,390 ns | 4.469 LE |
+| `cyclone_10` | 4.480 / 6.272 (71 %) | 110.592 / 276.480 | 82 / 89 | 6,139 ns | 4.473 LE |
+| `cyclone_iv_dev_open` | 4.472 / 6.272 (71 %) | 110.592 / 276.480 | 83 / 92 | 6,841 ns | 4.469 LE |
+| `s_cyclone_iv_v4` | 6.377 / 10.320 (62 %) | 275.456 / 423.936 | 82 / 92 | 6,358 ns | 5.392 LE auf `.03` |
 
 Referenz für `scripts/check.ps1 -Fit`, gespiegelt in `scripts/baseline.csv`. Alle Slacks positiv
 bei 20 ns Taktperiode. **Cyclone II ist mit 94 % die harte Randbedingung** – was dort nicht
@@ -69,6 +72,24 @@ Woher die Differenz zu `.21` kommt, im Einzelnen nachgemessen:
   Abschnitt 3). Die Registerzahl bleibt bei 2.409 – die vier DIP-Bits wechseln nur die Senken,
   den Rest packt der Fitter um: 6.294 mit der gespiegelten Verdrahtung, 6.293 nur mit der
   Portkorrektur, 6.303 mit beiden. Zweimal dieselben Zahlen.
+- **03.08.2026, alle Varianten**, durch die 6-/7-stellige Bootmeldung und den `is_sys3`-Fix
+  (Abschnitt 3b). In zwei Läufen getrennt gemessen:
+
+  | Variante | vorher | Bootmeldung | + `is_sys3`-Fix |
+  |---|---|---|---|
+  | `cyclone_ii` | 4.322 | | 4.312 (**−10**) |
+  | `cyclone_iv_v3` | 5.033 | | 5.015 (−18) |
+  | `cyclone_iv_v4` | 4.476 | 4.482 (+6) | 4.494 (+18) |
+  | `cyclone_10` | 4.488 | | 4.480 (−8) |
+  | `cyclone_iv_dev_open` | 4.477 | | 4.472 (−5) |
+  | `s_cyclone_iv_v4` | 6.303 | 6.337 (+34) | 6.377 (+74) |
+
+  Die Bootmeldung selbst kostet wenig (+6 auf der Leitvariante); auf der S-Platine ist es
+  das Doppelte, weil dort **zwei** `boot_message`-Instanzen laufen – die Bootanzeige und
+  der Soundtest. Der `is_sys3`-Fix kostet 12 bzw. 40 LE: vorher war `is_sys3` konstant `'0'`,
+  der Fitter konnte den Memory-Protect-Term und einen Eingang des Sound-Multiplexers
+  wegwerfen. Die Minuszeichen bei den übrigen Boards sind Umpackung – **Cyclone II wird
+  dabei sogar 10 LE billiger**, was auf 94 % Auslastung die willkommenere Richtung ist.
 
 **Die Sound-Blöcke kosten die fünf Boards ohne Soundkarte nachweislich nichts.** Der Schritt, der
 sie ins gemeinsame Top-Level gebracht hat, lief mit *exakt* unveränderten LE-, Memory- und
@@ -173,6 +194,61 @@ Der Rest ist Umbau ohne Wirkung, jeweils einzeln durch `check.ps1 -Fit` gegen di
 `.20`-Zahlen abgesichert: Packages statt Konstanten, `R5101`-Portliste, interne Display-Signale,
 ROM-Block über `ROM_COUNT`, Monitor über `HAS_MONITOR`, generierte `.qsf`.
 
+### 3b. Nachgezogen vor der Auslieferung: 7-stellige Displays und `is_sys3`
+
+Beides kam nach dem eigentlichen `.22`-Umbau dazu, noch bevor `.22` in `bin/` liegt – es
+gehört deshalb in `.22` und nicht in eine eigene Nummer.
+
+5. **Die Bootmeldung kann jetzt 6- *und* 7-stellige Player-Displays.** Bisher lag sie fest
+   auf der 6-stelligen Strobe-Belegung; auf Geräten mit 7-stelligen Displays stand jede
+   Stelle eine Position daneben, und die Optionen landeten statt auf der Credit-Anzeige auf
+   den rechten Stellen von Player 1 und 2. `boot_message` bekommt den Eingang
+   `seven_digit`, die sechs Zeichen rücken dann zwei Strobes nach rechts (rechtsbündig,
+   linke Stelle dunkel) und die vier Statusziffern gehen auf Strobe 0 und 8, zwei je
+   Nibble. Woher der Displaytyp kommt: neue Tabelle in `rtl/common/game_pkg.vhd`, Spiel
+   16–31 (Algar, Alien Poker, alle SYS7) ist 7-stellig. Belegung, Quellen und die
+   Spielliste stehen in **`docs/display_layout.md`**.
+
+6. **FIX `is_sys3`.** `top/WillFA7.vhd` verglich `game_select <= "001000"`, also den
+   **rohen DIP-Wert** statt der Spielnummer. Da die DIPs active low sind, hat Spiel 0–8
+   `game_select` = 63–55; die Bedingung traf für kein existierendes Spiel zu. `is_sys3` war
+   seit `.16` konstant `'0'`, damit war „Fix 3" aus `docs/CHANGES_v3.16.md` (kein Memory
+   Protect bei SYS3/4) wirkungslos, und auf der S-Platine kam der Sound nie von den
+   Solenoiden 9–13. Der Kommentar in `CHANGES_v3.16.md` hat genau diese Prüfung erbeten.
+   Beide Ableitungen laufen jetzt über `game_no = not game_select` und `game_pkg`.
+   **Achtung: das schaltet zwei Pfade erstmals scharf** – bei Spiel 0–8 ist der
+   CMOS-Schreibschutz `$0180-$01FF` aus, und die S-Platine nimmt dort die
+   Solenoid-Soundquelle.
+
+7. **Ein SD-Kartenformat für alle, CRC-Prüfung überall.** Bis `.21` gab es drei Formate:
+   10 KByte ab 5800h (Cyclone II), 12 KByte ab 5000h (die übrigen) und 64 KByte mit CRC16
+   (WillFA7S). Seit `.22` gilt überall das dritte – 128 Sektoren je Spiel ab Sektor 660,
+   MPU-ROMs in den ersten 12 KByte, Soundkarten-ROMs bis 32 KByte, erwartete Prüfsumme auf
+   `0xFFFE/0xFFFF`. Im Top-Level sind `Slot_Sectors`, `Read_Bytes` und `CRC_Bytes` damit
+   Konstanten statt Ableitungen aus `HAS_SOUND`; `Check_CRC` hängt an der neuen
+   Variantenkonstante `SD_CHECK_CRC`. Die sechs 2K-Fenster sind auf jeder Variante dieselben,
+   ein Board mit `ROM_COUNT = 5` lässt Fenster 0 nur liegen – **genau das** macht die alte
+   Cyclone-II-Karte unbrauchbar. Die beiden Prüfsummen stehen jetzt auf jeder Variante auf
+   `display3`/`display4`; das Build-Datum weicht dafür.
+
+   Kosten: +53 bis +92 LE (Cyclone II 4312 → **4404 von 4608**, passt mit 204 LE Rest), und
+   rund **1 Sekunde mehr Bootzeit**, weil für die CRC der ganze 64-KByte-Slot gelesen wird.
+   `s_cyclone_iv_v4` ist auf LE und Slack **stellengenau unverändert** – die Variante las
+   dieses Format schon, was die Umstellung am besten absichert.
+
+   Rückfallebene, falls einer Variante die LE ausgehen: `SD_CHECK_CRC = false`. Dieselbe
+   Karte, Leseende nach 12 KByte, keine Fehlererkennung, Build-Datum bleibt auf `display3`.
+   Wird derzeit von keiner Variante gebraucht.
+
+   Nebenwirkung auf den Kartensatz: die Standardkarte hat auf Slot 31 jetzt **Star Light**
+   statt WildTexas – so, wie `docs/switch_masks.md`, `docs/switch_matrix/` und beide Manuals
+   es ohnehin seit jeher beschreiben. Karten erzeugt ab sofort
+   `N:\Projekte\WillFA7\SD image WillFA7 (roms)\make_sd.bat`.
+
+   Offen: `rtl/sound/crc16_ccitt.vhd` liegt weiter unter `rtl/sound/`, obwohl es jetzt in
+   jedem Build steckt. Verschieben nach `rtl/common/` wäre folgerichtig, ist aber ein Move
+   und braucht eine ausdrückliche Freigabe.
+
 ### Zwei Befunde aus dem Umbau, die man wissen sollte
 
 - **Quartus löst Entity-Referenzen auch im *nicht* genommenen `generate`-Zweig auf.** Ohne die
@@ -196,8 +272,7 @@ ROM-Block über `ROM_COUNT`, Monitor über `HAS_MONITOR`, generierte `.qsf`.
 
 - ~~vier Kopien von `lib_common`~~ – ein `rtl/common/`.
 - ~~fünf handgepflegte `.qsf`~~ – generiert aus `device.tcl` + `pins.tcl` + Dateilisten.
-- ~~`.qip`-Pfade der S-Varianten zeigten ins Leere~~ – aufgelöst; `s_cyclone_10` zeigte
-  außerdem auf die Cyclone-**IV**-Megafunctions, jetzt auf `rtl/cyclone_10_s/`.
+- ~~`.qip`-Pfade der S-Variante zeigten ins Leere~~ – aufgelöst.
 - ~~`init_file` der `R5101.vhd` war projektverzeichnisrelativ~~ – jetzt explizit
   `../../rtl/common/cmos_256_0Fh.hex`.
 
@@ -209,25 +284,21 @@ ROM-Block über `ROM_COUNT`, Monitor über `HAS_MONITOR`, generierte `.qsf`.
 - ~~`variants/cyclone_ii/WillFA7.sdc` ist eine von Quartus 13 generierte Datei~~ – ist sie
   immer noch, aber jetzt bewusst und kommentiert von Hand nachgezogen (Abschnitt 3a).
 
+**Erledigt am 04.08.2026:**
+
+- ~~die unfertige Cyclone-10-Fassung der Soundplatine mit eigenem Top-Level und `local/`~~ –
+  aufgegeben und aus dem Repo entfernt, zusammen mit `rtl/cyclone_10_s/`. Sie hat nie gebaut
+  (`Error (10349)` auf `Audio_O`) und hatte null Pin-Zuweisungen. Damit gibt es keine ruhende
+  und keine handgepflegte Variante mehr.
+
 **Offen:**
 
-1. **`s_cyclone_10` baut nicht.** Auch hier war der frühere `Error (10481)` (`WISOF` fehlt)
-   nur die Folge der Pfade. Dahinter liegt jetzt der eigentliche Fehler
-   (Stand 27.07.2026, `quartus_map`):
-   `WillFA7.vhd:1170`, `Error (10349)` – Formal `Audio_O` existiert nicht; die Portliste
-   der instanzierten Entity passt nicht zum Aufruf.
-   Dazu: **0 Pin-Zuweisungen** in der `.qsf`. Die Variante wurde nie fertiggestellt.
-   Details in `variants/s_cyclone_10/README.md`.
-2. **`s_cyclone_10` benutzt weiterhin `variants/s_cyclone_10/local/`** und ein eigenes
-   Top-Level. Wird nachgezogen, wenn die Variante wieder aufgenommen wird; der Weg dafür ist
-   jetzt vorgezeichnet, `HAS_SOUND` gibt es schon. Fehlt dann noch: Pin-Zuweisungen und
-   `MPU_RAM`/`SB_ROM` – letztere sind seit `.22` inferiertes VHDL und damit familienunabhängig,
-   also kein Hindernis mehr.
-3. **Die Pins PIN_26/27/73 der Cyclone-II-Platine** sollten gegen den Schaltplan geprüft
+1. **Die Pins PIN_26/27/73 der Cyclone-II-Platine** sollten gegen den Schaltplan geprüft
    werden – 1.21 hat sie getrieben (Abschnitt 3a).
-4. **Cyclone II bei 94 %** – der nächste Funktionszuwachs passt dort nur, wenn er per
-   `variant_pkg` weggeneriert werden kann.
-5. Die `.sdc` von `cyclone_ii` ist eine von Quartus 13 **generierte** Datei, nicht der
+2. **Cyclone II bei 96 %** (4404 von 4608, seit der CRC-Prüfung) – der nächste
+   Funktionszuwachs passt dort nur, wenn er per `variant_pkg` weggeneriert werden kann.
+   Der nächstliegende Hebel wäre `SD_CHECK_CRC = false`, das gäbe 92 LE zurück.
+3. Die `.sdc` von `cyclone_ii` ist eine von Quartus 13 **generierte** Datei, nicht der
    handgeschriebene Satz der anderen. Funktioniert, ist aber ein Fremdkörper – und seit `.22`
    einer, an dem von Hand nachgezogen werden muss (Abschnitt 3a).
 
@@ -242,12 +313,31 @@ Abschnitt – mit Datum, Spiel und Fundstelle.
 ### Für jedes Board
 
 - **Bootanzeige** zeigt `x.22` – zugleich der Beweis, dass `variant_pkg` und `version_pkg` greifen.
-- **SD-Boot**: Spiel startet normal (ROM_COUNT = 6 → 12-KByte-Image ab 5000h, bei `cyclone_ii`
-  ROM_COUNT = 5 → 10-KByte-Image ab 5800h).
+- **SD-Boot**: Spiel startet normal – **mit einer Karte im neuen Format** (64-KByte-Slots,
+  `make_sd.bat`). Ein Spiel **oberhalb von Slot 0** ist dabei Pflicht: nur daran fällt auf, ob
+  die 128 Sektoren richtig gerechnet werden. Bei `cyclone_ii` zusätzlich der Beweis, dass die
+  ersten 2 KByte des Slots übersprungen werden.
+- **CRC**: `display3` und `display4` zeigen dieselbe vierstellige Summe. Gegenprobe mit einer
+  alten `.21`-Karte: erwartet werden Fehlerziffer `7` und Blinkcode 7 – **kein** startendes
+  Spiel.
 - **Blanking**: `LED_active` führt ausschließlich `blanking`, kein Einbruch ~6 s nach Boot
   und bei EEprom-Save.
 - **DIP4** ON = 250 µs Spezialsolenoid-Entprellung, OFF = 57 µs.
 - **DIP5** ON = Switch-Debouncer, OFF = `.17`-Verhalten.
+- **Bootmeldung auf einem 6-stelligen Gerät** (Spiel 0–15): unverändert gegenüber `.21`,
+  Optionen auf der Credit-Anzeige. Das ist der Regressionstest der Umstellung.
+- **Bootmeldung auf einem 7-stelligen Gerät** (Spiel 18–31, z. B. Black Knight): Version,
+  Spielnummer, Kennung und Bootphase stehen rechtsbündig in den vier Player-Displays, die
+  **linke** Stelle bleibt dunkel; die Optionen stehen auf der Credit-Anzeige, nicht am
+  rechten Rand von Player 1 und 2. Siehe `docs/display_layout.md`.
+- **Algar (16) und Alien Poker (17)** – der einzige unsichere Punkt der Tabelle. PinMAME
+  führt beide als 7-stellig, sie sind es laut Handbuch-Typ `SYS6A` auch. Wenn die
+  Bootmeldung dort verschoben steht, ist das Gerät 6-stellig und `DISP_7DIGIT` in
+  `rtl/common/game_pkg.vhd` bekommt an Position 16/17 eine `0`. Ergebnis in
+  `docs/display_layout.md` nachtragen.
+- **SYS3/4-Spiel (0–8), neu scharf durch den `is_sys3`-Fix**: Einstellungen lassen sich
+  speichern, ohne dass die Münztür offen sein muss (Memory Protect ist dort aus). Vorher
+  war `is_sys3` konstant `'0'`, der Schutz also auch bei SYS3/4 aktiv.
 
 ### Zusätzlich für `6.22` (WillFA7S, die Soundkarten-Platine)
 
@@ -268,9 +358,13 @@ gelaufen. Die vollständige Liste steht in `docs/soundcard_variant.md`; das Wich
 - **Ein Spiel prüfen, das bisher ohne erkennbaren Sprachgrund auffällig war** – der
   Soundkarten-RAM wurde bis `.22` bei jedem Schreibzugriff der Sound-CPU mitbeschrieben.
 - **Sound-Quelle folgt jetzt automatisch der Spielnummer** (`is_sys3`) statt dem DIP
-  `sb_option(3)`. Je ein SYS3/4- und ein SYS6/7-Spiel prüfen.
+  `sb_option(3)`. Je ein SYS3/4- und ein SYS6/7-Spiel prüfen. **Das ist erst seit dem
+  `is_sys3`-Fix wirklich so** (Abschnitt 3b) – vorher war die Ableitung konstant `'0'` und
+  damit für jedes Spiel die SYS6/7-Quelle.
 - **Soundtest** über `SB_Test` durchsteppbar (`Diag_SW` weiter, `Enter_SW` spielen), Display
-  übernimmt, Diag-NMI bleibt dabei gesperrt.
+  übernimmt, Diag-NMI bleibt dabei gesperrt. Auf einem 7-stelligen Gerät muss die
+  Soundnummer im **Player-Display** stehen, nicht auf der Credit-Anzeige – der Soundtest
+  hat seine eigene `boot_message`-Instanz und bekommt denselben Displaytyp.
 - **S5 Dip für Dip durchprobieren.** Nur Dip1 ON muss Chimes geben und in der Statusanzeige
   `01` zeigen, nur Dip2 ON die Sprache freigeben und `02` zeigen, nur Dip4 ON den eingebauten
   Soundtest auf `SB_Test` legen und `08`. Bis kurz vor `.22` waren diese Zuordnungen gespiegelt

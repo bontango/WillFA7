@@ -2,7 +2,8 @@
 -- Ralf Thelen 'bontango' - www.lisy.dev
 --
 -- ONE top level for all board variants. What differs per board lives in
--- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR, HAS_SOUND),
+-- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR, HAS_SOUND,
+-- SD_CHECK_CRC),
 -- pins.tcl, device.tcl and WillFA7.sdc. This file must not contain anything board
 -- specific.
 --
@@ -21,6 +22,9 @@ use work.variant_pkg.all;
 use work.version_pkg.all;
 -- DISPLAY_T / DISPLAY_TS for the boot message data, which HAS_SOUND fills differently
 use work.instruction_buffer_type.all;
+-- what depends on the selected game: display type and system generation. The package
+-- exports functions over std_logic_vector only, so no numeric_std comes in with it.
+use work.game_pkg.all;
 	
 entity WillFA7 is
 	port(
@@ -31,10 +35,12 @@ entity WillFA7 is
 		reset_sw  : in std_logic; 	--goes Low on reset(push)
 		LED_SD_Error 	: out STD_LOGIC;
 
-		-- CAREFUL: LED_active and LED_status are not plain LEDs. LED_active is the
-		-- driver board blanking line (IC13 74HCT240 /OE plus /RESET of the five
-		-- 74HCT273 latches), LED_status is the display blanking. Never repurpose them
-		-- for status or error indication - see docs/blanking_led_active.md.
+		-- CAREFUL: these two drive an LED AND a control line. LED_active is the 'active'
+		-- LED and the driver board blanking (IC13 74HCT240 /OE plus /RESET of the five
+		-- 74HCT273 latches), LED_status is the 'status' LED and the display blanking.
+		-- So they look like free indicators and are not: whatever you show on them, you
+		-- switch on the machine at the same time. Never repurpose them for status or
+		-- error indication - see docs/blanking_led_active.md.
 		LED_active 	: out STD_LOGIC;
 		LED_status 	: out STD_LOGIC;
 
@@ -113,23 +119,18 @@ end;
 
 architecture rtl of WillFA7 is
 
--- SD card layout. Follows straight from HAS_SOUND, so it is derived here instead of
--- being two more constants in every variant_pkg.vhd.
---   standard : 24 sectors = 12 KByte per game, no CRC
---   WillFA7S : 128 sectors = 64 KByte per game, CRC16-CCITT over the first 32 KByte
--- VHDL-93 has no conditional expression, hence the little functions.
-function pick_slot_sectors(sound : boolean) return integer is
-begin
-	if sound then return 128; else return 24; end if;
-end function;
-
-function pick_crc_bytes(sound : boolean) return integer is
-begin
-	if sound then return 32768; else return 0; end if;
-end function;
-
-constant SD_SLOT_SECTORS : integer := pick_slot_sectors(HAS_SOUND);
-constant SD_CRC_BYTES    : integer := pick_crc_bytes(HAS_SOUND);
+-- SD card layout. ONE format for every board since .22 - what used to be the WillFA7S
+-- card is now the card. A slot is 128 sectors = 64 KByte, of which the first 12 KByte
+-- are the MPU ROMs, 12..32 KByte the sound board ROMs (read by the S board only, read
+-- and dropped by everyone else) and the last two bytes the expected CRC16-CCITT over
+-- the first 32 KByte. Layout: docs/soundcard_variant.md section 4.
+--
+-- Before .22 there were three formats: 10 KByte from 5800h on Cyclone II, 12 KByte from
+-- 5000h on the others, 64 KByte on WillFA7S. The first two are gone - a .21 card does
+-- not boot on .22 and reports itself as a CRC error, which is the point.
+constant SD_SLOT_SECTORS : integer := 128;   -- 64 KByte per game
+constant SD_MPU_BYTES    : integer := 12288; -- MPU ROM payload, 6 x 2K
+constant SD_CRC_BYTES    : integer := 32768; -- what the CRC on the card covers
 
 signal cpu_clk		:  std_logic;  --894KHz for Williams
 signal mem_clk		:  std_logic;  --894KHz shifted for mem access without glitches
@@ -251,9 +252,8 @@ signal wr_system_rom			:  std_logic;
 signal SDcard_MOSI	:	std_logic;
 signal SDcard_CLK		:	std_logic;
 signal SDcard_error	:	std_logic:='1'; --active low
--- CRC of the game data on the card. Only the sound board layout carries one, so on
--- every other variant these three stay constant and unread - that is where the three
--- 'never read' warnings for them come from, see CLAUDE.md.
+-- CRC of the game data on the card. Every card carries one since .22, so unless a board
+-- turns SD_CHECK_CRC off these are live signals and go on the boot display.
 signal crc16			:  std_logic_vector(15 downto 0); -- computed while reading
 signal crc16_r			:  std_logic_vector(15 downto 0); -- read from the end of the slot
 signal crc_error		:  std_logic;
@@ -312,8 +312,12 @@ signal R_out : std_logic_vector(3 downto 0); -- receiver outputs AT28
 
 signal sp_solenoid1_mpu_filtered	: std_logic;
 
--- system type detection
-signal is_sys3 : std_logic; -- '1' for System3/4 (game_select 0-8)
+-- the selected game, and what depends on it
+-- game_no is THE game number 0..31; the DIPs are active low, so it is 'not game_select'.
+-- Same number the SD card slot, the EEprom page and the debounce mask use.
+signal game_no : std_logic_vector(5 downto 0);
+signal is_sys3 : std_logic; -- '1' for System3/4 (game 0-8)
+signal disp_7digit : std_logic; -- '1' for seven digit player displays (game 16-31)
 
 ----------------------------------------------------------------------------
 -- integrated sound board (HAS_SOUND) - see docs/soundcard_variant.md
@@ -347,6 +351,7 @@ signal sound_com		: std_logic_vector(4 downto 0);
 -- driven in GEN_SOUND, read by the boot message data in GEN_DIPS_SOUND
 signal sbo_dig0			: std_logic_vector(3 downto 0);
 signal sbo_dig1			: std_logic_vector(3 downto 0);
+-- driven for every board, read by the boot message data in GEN_CRC_DISP
 signal crc_dig			: std_logic_vector(3 downto 0); -- 7 on the error display when the CRC is wrong
 
 -- gated versions, so the sound test does not fight the diagnostics
@@ -368,14 +373,16 @@ begin
 --debug <= '1' when cpu_addr = x"7053" and rom4_cs = '1' else '0';
 --debug <= '1' when cpu_addr = x"FFFC" else '0'; --NMI
 
-LED_status <= not boot_phase(0); -- for display blanking
+LED_status <= not boot_phase(0); -- 'status' LED and the display blanking, same line
 LED_sd_Error <=  SDcard_error;
--- CAREFUL: LED_active is NOT a plain LED, it is the driver board blanking line:
+-- CAREFUL: LED_active drives the 'active' LED, but not only that - the same pin is the
+-- driver board blanking line:
 --   -> IC13 74HCT240 /OE (switch strobes)
 --   -> T9 -> blanking_n -> /RESET of IC3,4,5 (solenoid latches) and IC6,7 (lamp latches)
--- A '1' clears every solenoid and lamp latch and blocks the switch strobes.
--- This pin must carry 'blanking' and nothing else - never repurpose it for status or
--- error indication. That was the .17 to .19 regression, see docs/blanking_led_active.md.
+-- A '1' clears every solenoid and lamp latch and blocks the switch strobes. The LED is
+-- what makes this pin look free; it is not. It must carry 'blanking' and nothing else -
+-- never repurpose it for status or error indication. That was the .17 to .19 regression,
+-- see docs/blanking_led_active.md.
 LED_active <= blanking;
 
 -- dev boards only; on every other board this is a virtual pin
@@ -383,8 +390,16 @@ LED_debug <= reset_sw;
 
 opt_nvram_init_n <= game_option(1); -- 0 if option Dip1 is set
 
--- System3/4 when game_select <= 8 (active-low DIP readout, direct value)
-is_sys3 <= '1' when game_select <= "001000" else '0';
+-- The game number and the two properties derived from it, see rtl/common/game_pkg.vhd.
+-- CAREFUL with the polarity: until .22 this read
+--     is_sys3 <= '1' when game_select <= "001000" else '0';
+-- which compares the RAW DIP value instead of the game number. Game 0..8 have
+-- game_select 63..55, so that was never true for any game that exists - is_sys3 was
+-- stuck at '0' and 'Fix 3' of docs/CHANGES_v3.16.md never took effect. The comment
+-- there asked for exactly this check.
+game_no <= not game_select;
+is_sys3 <= is_system3(game_no);
+disp_7digit <= has_7digit(game_no);
 ----------------
 -- boot phases
 ----------------
@@ -417,6 +432,8 @@ port map(
    show  => boot_phase(0),    
 	--show error
 	is_error => SDcard_error, --active low
+	-- six or seven digit player displays, decided by the game number
+	seven_digit => disp_7digit,
 	-- output
 	strobe	=> bm_disp_strobe,
 	bcd	=> bm_disp_bcd,
@@ -469,11 +486,7 @@ GEN_DIPS_PLAIN: if not HAS_SOUND generate
 	-- the switch strobes are PIA2's alone here
 	sw_strobe <= game_sw_strobe;
 
-	-- build date and boot phase, the usual boot message
-	bm_display3    <= ( x"0",x"5",x"0",x"9",x"6",x"3" );
-	bm_display4    <= ( x"F",x"F",x"F",x"F",b_dig1, b_dig0);
-	bm_error_disp4 <= ( x"F",x"5",x"6",x"F",b_dig1, b_dig0);
-	bm_status_d    <= ( x"F",x"F",o_dig0, o_dig1 );
+	bm_status_d <= ( x"F",x"F",o_dig0, o_dig1 );
 end generate;
 
 GEN_DIPS_SOUND: if HAS_SOUND generate
@@ -519,17 +532,41 @@ begin
 	DIP_Str_3 <= dipstrobe(2);
 	DIP_Str_4 <= dipstrobe(3);
 
-	-- computed and read CRC of the game data instead of the build date, and a 7 in
-	-- the leading digit of the error display when they disagree
-	bm_display3    <= ( x"F",x"F", crc16(15 downto 12), crc16(11 downto 8), crc16(7 downto 4), crc16(3 downto 0));
-	bm_display4    <= ( x"F",x"F", crc16_r(15 downto 12), crc16_r(11 downto 8), crc16_r(7 downto 4), crc16_r(3 downto 0));
-	bm_error_disp4 <= ( crc_dig, x"5",x"6",x"F", b_dig1, b_dig0);
 	-- The sound board DIPs join the status display. On the board the sound board options
 	-- end up on the LEFT pair of digits, the game options on the right - boot_message
 	-- puts status_d(0)/(1) on the strobes 15/14 and status_d(2)/(3) on 7/6, and 14/15 is
 	-- the left pair. Tens before ones within each pair.
 	bm_status_d    <= ( sbo_dig0, sbo_dig1, o_dig0, o_dig1 );
 end generate;
+
+----------------------------------------------------------------------------
+-- displays 3 and 4 of the boot message
+--
+-- With the CRC check on they carry the two checksums of the game data, which is
+-- what makes a bad card readable off the display instead of only blinkable on the
+-- LED. Without it they keep the build date - showing 0000/0000 would pretend a
+-- comparison that never happened.
+--
+-- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
+-- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+----------------------------------------------------------------------------
+GEN_CRC_DISP: if SD_CHECK_CRC generate
+	bm_display3    <= ( x"F",x"F", crc16(15 downto 12), crc16(11 downto 8), crc16(7 downto 4), crc16(3 downto 0));
+	bm_display4    <= ( x"F",x"F", crc16_r(15 downto 12), crc16_r(11 downto 8), crc16_r(7 downto 4), crc16_r(3 downto 0));
+	bm_error_disp4 <= ( crc_dig, x"5",x"6",x"F", b_dig1, b_dig0);
+end generate;
+
+GEN_CRC_DISP_OFF: if not SD_CHECK_CRC generate
+	-- build date and boot phase, the boot message as it was before .22
+	bm_display3    <= ( x"0",x"5",x"0",x"9",x"6",x"3" );
+	bm_display4    <= ( x"F",x"F",x"F",x"F",b_dig1, b_dig0);
+	bm_error_disp4 <= ( x"F",x"5",x"6",x"F",b_dig1, b_dig0);
+end generate;
+
+-- 7 in the leading digit of the error display means the game data on the card did not
+-- match its CRC, see rtl/common/SD_Card.vhd (blink code 7 on LED_SD_Error). Without
+-- Check_CRC crc_error is a constant '0' and this costs nothing.
+crc_dig <= x"7" when crc_error = '1' else x"F";
 
 -----------------------------------------------
 -- phase 1: activated by 'read_the_dips' after first read
@@ -545,12 +582,13 @@ SPI_CLK <= SDcard_CLK when boot_phase(2) = '0' else EEprom_CLK;
 ----------------------
 SD_CARD: entity work.SD_Card
 generic map(
-	Read_Bytes => ROM_COUNT*2048,  -- 2K per ROM block, see variant_pkg.vhd
-	-- The sound board layout is a different card format: 64 KByte per game instead
-	-- of 12, with the sound ROMs behind the MPU ROMs and a CRC16 in the last two
-	-- bytes. Both are described in docs/soundcard_variant.md.
+	-- Read_Bytes only decides where the read stops WITHOUT a CRC check - with one the
+	-- read runs to the end of the slot anyway, because that is where the expected
+	-- checksum sits. So this is the MPU payload, not ROM_COUNT*2048: a five ROM board
+	-- still has to read past its own blocks, it just drops the first 2K window.
+	Read_Bytes   => SD_MPU_BYTES,
 	Slot_Sectors => SD_SLOT_SECTORS,
-	Check_CRC    => HAS_SOUND,
+	Check_CRC    => SD_CHECK_CRC,   -- per board, see variant_pkg.vhd
 	CRC_Bytes    => SD_CRC_BYTES
 )
 port map(
@@ -563,7 +601,7 @@ port map(
    o_SPI_MOSI => SDcard_MOSI,
    o_SPI_CS_n => CS_SDcard,	
 	-- selection
-	selection => "00" & not game_select,
+	selection => "00" & game_no,
 	--selection => not game_select,
 	-- data
 	address_sd_card => address_sd_card,
@@ -571,7 +609,7 @@ port map(
 	wr_rom => wr_rom,
 	-- feedback
 	SDcard_error => SDcard_error,
-	-- CRC, sound board layout only - constant on every other variant
+	-- CRC of the game data; both sums go on the boot display, see below
 	calc_checksum => crc16,
 	read_checksum => crc16_r,
 	crc_error => crc_error,
@@ -598,7 +636,7 @@ port map(
    o_SPI_MOSI => EEprom_MOSI,
    o_SPI_CS_n => CS_EEprom,
 	-- selection
-	selection => "00" & not game_select,
+	selection => "00" & game_no,
 	-- write trigger
 	w_trigger(4) => enter_stable, -- for save within setup sys3
 	w_trigger(3) => GameOn, --game_over_relay,
@@ -701,12 +739,11 @@ cpu_irq <= pia1_irq_a or pia1_irq_b
 ------------------
 --
 --roms 2K each
--- rom1..rom5 sit at the same addresses on every board. Only rom0 (5000-57FF) is
--- board dependent, and it is not just "one block less": a five ROM board reads a
--- 10 KByte SD card image whose first 2K window goes to 5800h, a six ROM board a
--- 12 KByte image whose first 2K window goes to 5000h. Two different file formats.
--- That is why both wr_rom tables are written out instead of derived from an offset -
--- they can be checked line by line against the two image layouts.
+-- One card format for every board since .22, so the six 2K windows of the image are
+-- the same everywhere: window 0 -> rom0 (5000h) ... window 5 -> rom5 (7800h). A five
+-- ROM board simply has no rom0 and lets window 0 go past unwritten - it does NOT
+-- shift the others down, which is exactly what the old 10 KByte image did.
+-- Slot layout: docs/soundcard_variant.md section 4.
 rom1_cs   <= '1' when cpu_addr(14 downto 11) = "1011" and cpu_vma='1' else '0'; --5800-5FFF
 rom2_cs   <= '1' when cpu_addr(14 downto 11) = "1100" and cpu_vma='1' else '0'; --6000-67FF
 rom3_cs   <= '1' when cpu_addr(14 downto 11) = "1101" and cpu_vma='1' else '0'; --6800-6FFF
@@ -719,30 +756,30 @@ rom5_cs   <= '1' when cpu_addr(14 downto 11) = "1111" and cpu_vma='1' else '0'; 
 -- one file per game for all Williams variants, mapping is done inside that file
 -- address selection: read from SD when wr_rom == 1, else map to address room
 --
--- Two complementary if-generate, not if/else generate: else generate is VHDL-2008
--- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
+-- The five windows every board has. Check these line by line against the slot layout,
+-- not from memory - a window off by one loads the game one 2K block skewed and the
+-- symptom is a game that boots into nonsense, not a build error.
+wr_rom1 <= '1' when address_sd_card(15 downto 11) = "00001" and wr_rom='1' else '0'; --sec 2K   5800h
+wr_rom2 <= '1' when address_sd_card(15 downto 11) = "00010" and wr_rom='1' else '0'; --third 2K 6000h
+wr_rom3 <= '1' when address_sd_card(15 downto 11) = "00011" and wr_rom='1' else '0'; --fourth 2K 6800h
+wr_rom4 <= '1' when address_sd_card(15 downto 11) = "00100" and wr_rom='1' else '0'; --fift 2K  7000h
+wr_rom5 <= '1' when address_sd_card(15 downto 11) = "00101" and wr_rom='1' else '0'; --sixt 2K  7800h
+
+-- Only rom0 is board dependent. Two complementary if-generate, not if/else generate:
+-- else generate is VHDL-2008 and Cyclone II builds with Quartus 13.0sp1.
 GEN_ROM0: if ROM_COUNT = 6 generate
-	-- 12 KByte image, first 2K window at 5000h
 	rom0_cs <= '1' when cpu_addr(14 downto 11) = "1010" and cpu_vma='1' else '0'; --5000-57FF
-	wr_rom0 <= '1' when address_sd_card(15 downto 11) = "00000" and wr_rom='1' else '0'; --first 2K
-	wr_rom1 <= '1' when address_sd_card(15 downto 11) = "00001" and wr_rom='1' else '0'; --sec 2K
-	wr_rom2 <= '1' when address_sd_card(15 downto 11) = "00010" and wr_rom='1' else '0'; --third 2K
-	wr_rom3 <= '1' when address_sd_card(15 downto 11) = "00011" and wr_rom='1' else '0'; --fourth 2K
-	wr_rom4 <= '1' when address_sd_card(15 downto 11) = "00100" and wr_rom='1' else '0'; --fift 2K
-	wr_rom5 <= '1' when address_sd_card(15 downto 11) = "00101" and wr_rom='1' else '0'; --sixt 2K
+	wr_rom0 <= '1' when address_sd_card(15 downto 11) = "00000" and wr_rom='1' else '0'; --first 2K 5000h
 end generate;
 
 GEN_ROM0_OFF: if ROM_COUNT /= 6 generate
-	-- 10 KByte image, first 2K window at 5800h. 5000-57FF stays empty and reads FF
-	-- through the cpu_din mux below.
+	-- No rom0 block on this board: window 0 of the image is read and dropped, and
+	-- 5000-57FF reads FF through the cpu_din mux below. Games that need the full
+	-- 12 KByte (Defender, Star Light) therefore do not run here - that is a property
+	-- of the board, not of the card.
 	rom0_cs   <= '0';
 	wr_rom0   <= '0';
 	rom0_dout <= x"FF";	-- must be driven: with ROM_0 gone it would have no source at all
-	wr_rom1 <= '1' when address_sd_card(15 downto 11) = "00000" and wr_rom='1' else '0'; --first 2K
-	wr_rom2 <= '1' when address_sd_card(15 downto 11) = "00001" and wr_rom='1' else '0'; --sec 2K
-	wr_rom3 <= '1' when address_sd_card(15 downto 11) = "00010" and wr_rom='1' else '0'; --third 2K
-	wr_rom4 <= '1' when address_sd_card(15 downto 11) = "00011" and wr_rom='1' else '0'; --fourth 2K
-	wr_rom5 <= '1' when address_sd_card(15 downto 11) = "00100" and wr_rom='1' else '0'; --fift 2K
 end generate;
 
 rom_address <=
@@ -1018,7 +1055,7 @@ port map(
 	clk           => cpu_clk,
 	i_Rst_L       => reset_l,
 	enable        => not game_option(5),  -- option DIP5 ON (game_option(5)='0') -> debounce; OFF -> raw .17 passthrough
-	game          => not game_select,  -- game number 0..31; DIPs are active low, same as 'selection' at SD_Card/EEprom
+	game          => game_no,  -- game number 0..31, same as 'selection' at SD_Card/EEprom
 	sw_strobe     => sw_strobe,        -- one-hot column select (buffer port, readable)
 	sw_return_raw => sw_return,        -- raw returns from the pins
 	sw_return_deb => sw_return_deb
@@ -1473,8 +1510,9 @@ GEN_NO_SOUND: if not HAS_SOUND generate
 	-- Constants, so everything that reads them collapses: the display switch, the
 	-- NMI gate, the config gate. Nothing of the sound board survives here, which the
 	-- baseline check confirms - the five boards without one keep their exact numbers.
-	-- sb_option, sbo_dig0/1 and crc_dig are deliberately left undriven: nothing reads
-	-- them here either, so giving them a value would only add a 'never read' warning.
+	-- sb_option and sbo_dig0/1 are deliberately left undriven: nothing reads them here
+	-- either, so giving them a value would only add a 'never read' warning. crc_dig is
+	-- NOT one of them - it is driven for every board since .22, see GEN_CRC_DISP.
 	soundtest_active   <= '0';
 	sbtest_disp_strobe <= (others => '0');
 	sbtest_disp_bcd    <= (others => '0');
@@ -1591,6 +1629,7 @@ begin
 		activate	=> not SB_Test and not sb_option(4),
 		step	=> Diag_SW,
 		play	=> Enter_SW,
+		seven_digit => disp_7digit,
 		soundtoplay => sound_test,
 		is_active => soundtest_active,
 		strobe => sbtest_disp_strobe,
@@ -1608,10 +1647,6 @@ begin
 		dig1 => sbo_dig1,
 		dig2 => open
 		);
-
-	-- leading digit of the error display: 7 means the game data on the card did not
-	-- match its CRC, see rtl/common/SD_Card.vhd (blink code 7 on LED_SD_Error)
-	crc_dig <= x"7" when crc_error = '1' else x"F";
 end generate;
 
 end rtl;

@@ -1,6 +1,10 @@
 # Die Soundkarten-Variante – was `HAS_SOUND` wirklich ändert
 
-Stand: 02.08.2026 · gilt für `variants/s_cyclone_iv_v4` (WillFA7S HW1.0, Version 6.22)
+Stand: 04.08.2026 · gilt für `variants/s_cyclone_iv_v4` (WillFA7S HW1.0, Version 6.22)
+
+> **Abschnitt 4 und 5 sind seit `.22` allgemeingültig.** Das SD-Kartenformat dieser Platine und
+> die CRC-Prüfung gelten jetzt für alle sechs Varianten; sie stehen weiter hier, weil sie von
+> hier kommen. Alles andere in diesem Dokument ist nach wie vor sound-spezifisch.
 
 `s_cyclone_iv_v4` ist eine `cyclone_iv_v4` mit auf demselben FPGA integrierter Williams-Soundkarte.
 Seit `.22` baut sie aus demselben `top/WillFA7.vhd` wie alle anderen; was sie unterscheidet, hängt
@@ -83,18 +87,21 @@ Auf der Credit-Anzeige stehen die **Soundkarten-Optionen links, die Spieloptione
 - Die Anzeige `CONVSBO` konkateniert aus demselben Grund explizit
   `sb_option(4) & sb_option(3) & sb_option(2) & sb_option(1)`.
 
-## 4. SD-Kartenformat: 64-KByte-Slots statt 12
+## 4. SD-Kartenformat: seit `.22` kein Unterschied mehr
 
-Das ist der Unterschied mit der größten praktischen Wirkung: **eine Standard-SD-Karte läuft auf
-dieser Platine nicht, und umgekehrt.**
+**Dieser Abschnitt beschreibt seit `.22` keine Besonderheit der S-Platine mehr, sondern das
+Kartenformat aller sechs Varianten.** Er steht hier, weil das Format von dieser Platine kommt.
 
-| | Standard | WillFA7S |
-|---|---|---|
-| Startsektor Spiel 0 | 660 | 660 |
-| Slot je Spiel | 24 Sektoren = 12 KByte | **128 Sektoren = 64 KByte** |
-| gelesen wird | 12 KByte | der ganze Slot (wegen der CRC am Ende) |
+Bis `.21` gab es drei Formate:
 
-Belegung eines Slots:
+| | Cyclone II | Cyclone IV / 10 | WillFA7S |
+|---|---|---|---|
+| Startsektor Spiel 0 | 660 | 660 | 660 |
+| Slot je Spiel | 24 Sektoren = 12 KByte | 24 Sektoren = 12 KByte | 128 Sektoren = 64 KByte |
+| Nutzlast | 10 KByte, erstes 2K-Fenster auf **5800h** | 12 KByte, erstes 2K-Fenster auf 5000h | 12 KByte MPU + 20 KByte Sound |
+| CRC | nein | nein | ja |
+
+Seit `.22` gilt die rechte Spalte überall. Belegung eines Slots:
 
 ```
 0x0000 - 0x2FFF   12 KByte   MPU-ROMs, 6 x 2K  -> Adressraum 5000h..7FFFh
@@ -103,13 +110,21 @@ Belegung eines Slots:
 0xFFFE - 0xFFFF    2 Byte    erwartete CRC16-CCITT ueber die ersten 32 KByte
 ```
 
-Die ersten 12 KByte sind bitgleich zum Standard-Image – nur der Slot drumherum ist größer.
+Was eine Variante ohne Soundkarte damit macht: sie liest den Bereich 12K–32K mit, dekodiert ihn
+aber nicht – kein `wr_rom`-Fenster trifft ihn, die Bytes laufen durch den CRC und werden
+verworfen. Ein Board mit `ROM_COUNT = 5` (Cyclone II) lässt zusätzlich **Fenster 0 liegen**;
+es verschiebt die anderen fünf nicht nach unten, wie es das alte 10-KByte-Image verlangt hat.
+Deshalb bootet eine `.21`-Karte unter `.22` nicht mehr.
+
+Preis des gemeinsamen Formats: der ganze Slot wird gelesen, also 64 statt 12 KByte bei 400 kHz –
+rund **eine Sekunde mehr Bootzeit** auf den Varianten, die vorher 12 KByte gelesen haben.
 
 ## 5. CRC-Prüfung beim Laden
 
 `rtl/sound/crc16_ccitt.vhd` läuft über jedes geschriebene Byte unterhalb `CRC_Bytes` mit
-(Generic in `rtl/common/SD_Card.vhd`, hier 32768). Am Slot-Ende werden die letzten beiden Bytes
-zu `read_checksum`, und der Zustand `verify_crc` vergleicht.
+(Generic in `rtl/common/SD_Card.vhd`, überall 32768). Am Slot-Ende werden die letzten beiden Bytes
+zu `read_checksum`, und der Zustand `verify_crc` vergleicht. Auch das ist seit `.22` auf **jeder**
+Variante scharf, geschaltet von `SD_CHECK_CRC` in `variants/<name>/variant_pkg.vhd`.
 
 Sichtbar wird das in der Bootanzeige:
 
@@ -122,6 +137,11 @@ Sichtbar wird das in der Bootanzeige:
 Bei Abweichung geht der Lauf in `error`, `LED_SD_Error` blinkt den Code **7**, und die CPU startet
 nicht – ein falsches Spiel laufen zu lassen wäre schlimmer als die Fehleranzeige.
 
+`SD_CHECK_CRC = false` ist die Rückfallebene, falls einer Variante die Logikzellen ausgehen: das
+Kartenformat bleibt dasselbe, der Lauf endet nach den 12 KByte MPU-Nutzlast, und `display3`/`4`
+zeigen weiter das Build-Datum statt zweier Summen, die nie verglichen wurden. Auf Cyclone II
+kostet die Prüfung 92 LE und passt (4404 von 4608), deshalb ist sie dort an.
+
 ## 6. Sound-Quelle: seit `.22` automatisch
 
 Die Soundkarte muss wissen, woher ihre fünf Steuerleitungen kommen:
@@ -131,6 +151,11 @@ Die Soundkarte muss wissen, woher ihre fünf Steuerleitungen kommen:
 
 Bis 6.03 wählte das der DIP `sb_option(3)`. Seit `.22` folgt es `is_sys3`, also der Spielnummer –
 genau wie der Speicherschutz seit `.20`. Ein DIP weniger zu erklären, dieselbe Quelle der Wahrheit.
+
+**Vorsicht beim Testen:** `is_sys3` war von `.16` bis in den `.22`-Umbau hinein konstant `'0'` –
+der Vergleich lief gegen den rohen DIP-Wert statt gegen die Spielnummer. Die SYS3/4-Quelle war
+damit nie ausgewählt. Der Fix steht in `VARIANTEN.md` Abschnitt 3b; die Solenoid-Quelle geht
+mit ihm zum ersten Mal überhaupt in Betrieb.
 
 Die ausgewählte Quelle heißt `sound_com` und geht an **zwei** Stellen: an die interne Soundkarte
 *und* an den Sound-/Komma-Latch `FF_LAMPSS` (`ff3`), also auf den Steckverbinder für eine externe
