@@ -5,7 +5,7 @@ top level and its own frozen copies of the common modules under `local/`. It is 
 variant of the shared source tree:
 
 ```
-6,303 / 10,320 logic elements (61 %)   275,456 / 423,936 memory bits   slack 5.772 ns
+6,377 / 10,320 logic elements (62 %)   275,456 / 423,936 memory bits   36 / 46 M9K   slack 6.358 ns
 ```
 
 Same `top/WillFA7.vhd`, same `rtl/common/`, generated `.qsf`, version from the packages -> 6.22.
@@ -44,8 +44,20 @@ Everything is collected in **`../../docs/soundcard_variant.md`**. The short vers
 
 ## Why the EP4CE10
 
-Not the logic - this variant uses 60 % of it. The memory: five 4 KByte sound ROMs are another
-163,840 bits, which no longer fit into the 276,480 bits of an EP4CE6.
+**Two independent reasons, not one.** An EP4CE6E22C8 has 6,272 logic elements and 30 M9K blocks.
+
+- **Memory.** What counts is blocks, not bits: at 8 bit width only 8,192 of an M9K's 9,216 bits
+  are usable, the ninth column is parity. The ROM alone - 20 KByte sound plus 12 KByte MPU -
+  therefore needs **exactly 32 M9K, and the EP4CE6 has 30**. Two blocks short before a single
+  byte of RAM. Both ROM groups are packed 100 %, so there is nothing to regain by rearranging,
+  and Cyclone IV E has no MLAB, so even the sound 6802's 128 byte RAM costs a full block.
+- **Logic.** At fork level 6.03 this was 5,392 LE and the note here read "not the logic". Since
+  `.22` it is **6,377 LE - 105 more than an EP4CE6 has at all.**
+
+External memory - SPI RAM, QSPI PSRAM - would fix the first and make the second worse, since its
+controller costs LEs; parallel SRAM needs 28 pins and only 10 are free. The full arithmetic,
+including the options that were checked and rejected, is in
+**`../../docs/memory_budget_willfa7s.md`**.
 
 ## Where the old state went
 

@@ -55,7 +55,8 @@ variants/<name>/ variant_pkg.vhd · device.tcl · pins.tcl · variant.psd1 ·
                  WillFA7.sdc · WillFA7.qpf · willfa7.cof · WillFA7.qsf (generiert)
 scripts/         gen_qsf.ps1 · check.ps1 · build.ps1 · release.ps1 · files_*.tcl · baseline.csv
 bin/             Release-Binaries + changelog.txt
-docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide) und die
+docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide, Speicherbilanz
+                 der S-Variante) und die
                  beiden User Manuals (WillFA7 und WillFA7S). Manuals ohne Versionsnummer
                  im Dateinamen - die Version steht im Kopf des Dokuments
 archive/         historische Modulstaende, in keinem Build
@@ -370,6 +371,12 @@ Sound-spezifische hängt an `HAS_SOUND`. Drei Dinge, die man wissen muss, bevor 
 - **Das SD-Kartenformat der S-Platine ist seit `.22` das Format für alle** – 64-KByte-Slots ab
   Sektor 660, CRC16 auf 0xFFFE/0xFFFF. Die Bytes 12K–32K liest nur diese Platine wirklich;
   die anderen lesen sie mit und werfen sie weg. Siehe Abschnitt „SD-Karte" oben.
+- **Der EP4CE10 ist nicht wegzuoptimieren.** Ein EP4CE6 scheitert an *zwei* unabhängigen Grenzen:
+  36 gebrauchte M9K gegen 30 vorhandene – davon 32 allein fürs ROM, das zu 100 % gepackt ist –
+  **und** 6.377 LE gegen 6.272. Externer Speicher (SPI/QSPI-RAM) löst nur die erste und verschärft
+  die zweite. Die vollständige Rechnung samt geprüfter Auswege: **`docs/memory_budget_willfa7s.md`**.
+  Maßgeblich ist die **M9K-Blockzahl**, nicht die Bitzahl aus `baseline.csv` – die steht nur im
+  Fitter-Report.
 - **Der Kern ist Fremdcode mit eigener Versionsgeschichte.** Er stammt aus
   `N:\Projekte\Soundboards\FPGA Soundboard Williams\WISOF` und steht auf **0.9**. Wer ihn
   weiterzieht, nimmt nicht einfach die Datei von dort – die dortige Fassung ist eine

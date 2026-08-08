@@ -219,18 +219,35 @@ Gibt es nur auf dieser Platine.
 
 ## 10. FPGA und Ressourcen
 
-EP4CE10E22C8 statt EP4CE6E22C8 – **nicht wegen der Logik**, sondern wegen des Speichers:
+EP4CE10E22C8 statt EP4CE6E22C8 – aus **zwei** Gründen, nicht aus einem:
 
-| | EP4CE6 | EP4CE10 |
-|---|---|---|
-| Logic Elements | 6.272 | 10.320 |
-| Memory Bits | 276.480 | 423.936 |
+| | belegt | EP4CE10 | EP4CE6 |
+|---|---|---|---|
+| Logic Elements | **6.377** | 10.320 (62 %) | **6.272 – reicht nicht** |
+| M9K-Blöcke | **36** | 46 (78 %) | **30 – reicht nicht** |
+| Memory Bits (netto) | 275.456 | 423.936 | 276.480 |
 
-Die 20 KByte Soundkarten-ROM sind allein 163.840 Bit zusätzlich. Zusammen mit den 12 KByte
-MPU-ROM, RAM, CMOS und der Debounce-Maske sprengt das den EP4CE6. Logisch liegt die Variante
-dagegen bei rund der Hälfte des EP4CE10 – dort ist reichlich Luft.
+**Der Speicher.** Die maßgebliche Größe ist die Blockzahl, nicht die Bitzahl: bei 8 bit Datenbreite
+sind vom M9K nur 8.192 seiner 9.216 Bit nutzbar, die neunte Spalte ist Parity. Damit braucht das
+ROM allein – 20 KByte Sound plus 12 KByte MPU – **exakt 32 M9K, und der EP4CE6 hat 30.** Vor dem
+ersten Byte RAM fehlen also schon zwei Blöcke. Beide ROM-Gruppen sind zu 100 % gepackt, Umpacken
+bringt null. Cyclone IV E hat kein MLAB, also kostet auch das 128-Byte-RAM des Sound-6802 einen
+vollen Block.
 
-Die aktuellen Zahlen stehen in `scripts/baseline.csv`.
+**Die Logik.** Bis 6.03 lag die Variante bei 5.392 LE, und hier stand deshalb „nicht wegen der
+Logik". Seit `.22` sind es **6.377 LE – 105 mehr, als der EP4CE6 überhaupt hat.** Der Satz ist
+damit überholt; die +916 LE des Sprungs von `.03` auf `.22` sind in `VARIANTEN.md` Abschnitt 2
+aufgeschlüsselt.
+
+Beide Blocker sind voneinander unabhängig. Externer Speicher – SPI-RAM, QSPI-PSRAM – löst nur den
+ersten und verschärft den zweiten, weil sein Controller Logik kostet; für paralleles SRAM sind
+außerdem nur 10 von 28 nötigen Pins frei. Die vollständige Rechnung samt der geprüften Auswege
+(`ROM_COUNT = 5`, kleinere Sound-ROMs, Wechsel auf `10CL010YE144C8G`) steht in
+**`docs/memory_budget_willfa7s.md`**. Wer die Frage „geht das nicht auch auf dem kleinen Chip?"
+noch einmal gestellt bekommt, findet sie dort beantwortet.
+
+Die aktuellen LE-, Bit- und Slack-Zahlen stehen in `scripts/baseline.csv`. **Die M9K-Blockzahl
+steht dort nicht** – sie ist aus `output_files/WillFA7.fit.rpt` zu holen.
 
 ## 11. Zeitverhalten
 
