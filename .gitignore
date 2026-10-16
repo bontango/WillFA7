@@ -27,6 +27,11 @@ docs/*.png
 docs/*.jpg
 docs/*.jpeg
 
+# FPGA flash images WITH game ROMs (HAS_FLASH_ROM, scripts/make_flash_hex.ps1). They
+# may sit next to the release files in bin/ for local use, but never go to GitHub.
+*_roms.jic
+*_roms.hex
+
 # NOTE: archive/ holds lib_archive (historic module versions) and IS tracked.
 # NOTE: rtl/common/cmos_256_0Fh.hex is a source file, not a game ROM.
 # NOTE: variants/*/willfa7.cof is the programming-file converter setup and is

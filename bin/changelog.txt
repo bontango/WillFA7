@@ -268,3 +268,6 @@
 --           error 8 instead of running FF.
 --        Boot display: player 3/4 show the build date again instead of two checksums.
 --        Error code 7 (CRC mismatch) does not occur any more.
+--        Releases so far: WillFA7S/willfa7_v630.jic (new folder), for the hardware test.
+--        The other variants follow after that test. willfa7_v630_roms.jic next to it is the
+--        local flash image with game roms - git ignored, never published.

@@ -30,7 +30,8 @@ v1.30 16.10.2026
 - [5. Boot sequence](#5-boot-sequence)
   - [5.1. Phase 1: boot message](#51-phase-1-boot-message)
   - [5.2. Phase 2: SD card read](#52-phase-2-sd-card-read)
-  - [5.3. Phase 3: program execution](#53-phase-3-program-execution)
+  - [5.3. Running without SD card](#53-running-without-sd-card)
+  - [5.4. Phase 3: program execution](#54-phase-3-program-execution)
 - [6. Game settings](#6-game-settings)
 - [7. The integrated sound board](#7-the-integrated-sound-board)
   - [7.1. Which sound board it replaces](#71-which-sound-board-it-replaces)
@@ -41,6 +42,7 @@ v1.30 16.10.2026
 - [8. Software, SD card image and programming the FPGA](#8-software-sd-card-image-and-programming-the-fpga)
 - [9. Structure of SD card](#9-structure-of-sd-card)
   - [9.1. Use your own roms](#91-use-your-own-roms)
+- [10. Game roms in the FPGA flash](#10-game-roms-in-the-fpga-flash)
 - [Appendix A 'game select'](#appendix-a-game-select)
 
 ## Important remark
@@ -165,15 +167,13 @@ Player 1: version of the FPGA program running - it starts with a **6** on WillFA
 
 Player 2: value of selected game on S1 (game select)
 
-Player 3: **checksum of the game data, as computed while reading the card** (4 hex digits)
+Player 3: build date of the FPGA program
 
-Player 4: **checksum of the game data, as stored on the card** (4 hex digits)
+Player 4: boot phase
 
 Credit Display: the option switches - **the left two digits are the sound board options S5, the right two the game options S2**
 
-On a WillFA7 displays 3 and 4 show the lisy.dev identifier and the boot phase instead. WillFA7S uses them for the two checksums, because there is a lot more data to read here and it is worth knowing that it arrived intact.
-
-**The two values on player 3 and player 4 must be identical.** If they are not, see chapter 9.2.
+Versions 6.03 to 6.2x showed two checksums of the card on player 3 and 4. Since 6.30 the card carries no checksum any more, and the two displays show the same as on every WillFA7.
 
 The option value is formed like this: each switch that is 'ON' adds its weight.
 
@@ -204,11 +204,21 @@ The red LED also blinks a code that tells you what went wrong. Count the blinks;
 | 5      | no data arrived from the card                                         |
 | 6      | the card reported a read error                                        |
 
+| 8      | no SD card, and the FPGA flash holds no roms for this game - see 5.3 |
+
 Code 7 (checksum mismatch) existed with versions 6.03 to 6.2x only. Since 6.30 the card carries no checksum.
 
-### 5.3. Phase 3: program execution
+### 5.3. Running without SD card
 
-The code indicated by the Dip switch 'game select' is read from the SD card and executed. If the code runs ( regular display strobes are present) the 'active' LED will go ON. The sound board starts together with the game.
+New with 6.30: if **no SD card answers** (codes 1 to 4 above), WillFA7S does not stop there but reads the game roms and the sound board roms from the flash memory the FPGA itself boots from. This takes about 1.3 seconds longer, because the board first gives the card its chance.
+
+- The game starts as usual. Player 3 and 4 look the same as with a card.
+- A card that **is** there but delivers bad data (codes 5 and 6) is **not** replaced by the flash - a broken card should stay visible.
+- The FPGA program you download from lisy.dev has **no roms in the flash**. Without a card that ends in code **8**: the red LED blinks 8 times and the error display on player 4 starts with an 8. To fill the flash with roms see chapter 10.
+
+### 5.4. Phase 3: program execution
+
+The code indicated by the Dip switch 'game select' is read from the SD card (or from the flash, see 5.3) and executed. If the code runs ( regular display strobes are present) the 'active' LED will go ON. The sound board starts together with the game.
 
 ## 6. Game settings
 
@@ -306,6 +316,31 @@ The first area is exactly the card of the boards without a sound board, so one i
 The SD card image holds one slot per game number, so a rom set can be exchanged without changing the FPGA program.
 
 Write your rom set to the two positions given above with a sector editor: 12 KByte of game roms into the first area, 20 KByte of sound board roms into the second. Each part is read as one block and has to be complete.
+
+## 10. Game roms in the FPGA flash
+
+The FPGA boots from a 2 MByte flash chip (EPCS16) on the board. The FPGA program itself takes less than 400 KByte of it; from address 080000h on there is room for all 32 games, 32 KByte each - the game roms and the sound board roms together:
+
+```
+flash address 080000h + game number x 8000h    12 KByte game roms, then 20 KByte sound board roms
+```
+
+The roms are copyrighted, so they cannot be part of the download. You put them there yourself, from your own SD card:
+
+1. Write your SD card with the image as usual (chapter 9) and put it into the card reader of your PC.
+2. Build the rom file. In the WillFA7 source tree (github.com/bontango/WillFA7) run
+
+   ```
+   scripts\make_flash_hex.ps1 -SlotFiles <the 32 game files on the card> -SoundFiles <the 32 sound files> -Out variants\s_cyclone_iv_v4\output_files\willfa7_roms.hex
+   ```
+
+   The files on the card are named after the games (`hottip`, `lucky7`, ...) and the sound files the same with `_s` at the end, in game order. Alternatively `-Image <image file>` takes a complete image of the card. The script lists every game it found with its reset vector; a game shown with vector `FFFF` is empty.
+3. In the folder `variants\s_cyclone_iv_v4` run `quartus_cpf -c willfa7_roms.cof`. This puts the FPGA program and the roms into one file, `output_files\willfa7_roms.jic`.
+4. Program `willfa7_roms.jic` with the Quartus Programmer instead of the normal `.jic`, with 'Verify' ticked.
+
+From now on the board runs without SD card. With a card in the slot the card always wins, so you can still try other roms from a card without touching the flash.
+
+**Keep that file to yourself.** It contains the game roms and must not be passed on.
 
 ## Appendix A 'game select'
 
