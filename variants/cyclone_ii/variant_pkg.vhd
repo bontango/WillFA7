@@ -34,4 +34,9 @@ package variant_pkg is
 	-- after the MPU payload and a corrupt card is not noticed. The boot display then
 	-- keeps the build date instead of the two checksums.
 	constant SD_CHECK_CRC : boolean := true;
+
+	-- Game ROMs from the configuration flash when no SD card answers
+	-- (rtl/common/Flash_ROM.vhd). Only on WillFA7S so far, as a hardware test;
+	-- the other boards follow once it has passed there.
+	constant HAS_FLASH_ROM : boolean := false;
 end package;

@@ -94,3 +94,11 @@ set_location_assignment PIN_39 -to SB_Speech
 set_location_assignment PIN_34 -to SB_Sound
 set_location_assignment PIN_11 -to Dip_Ret_4
 set_location_assignment PIN_42 -to SB_Test
+
+# Configuration flash EPCS16 (HAS_FLASH_ROM). The dedicated configuration pins of the
+# E22 package, checked against the pin report of 6.22 (~ALTERA_DCLK~ 12, ~ALTERA_DATA0~ 13,
+# ~ALTERA_FLASH_nCE_nCSO~ 8, ~ALTERA_ASDO_DATA1~ 6). Released as regular I/O in device.tcl.
+set_location_assignment PIN_12 -to FLASH_DCLK
+set_location_assignment PIN_8 -to FLASH_NCS
+set_location_assignment PIN_6 -to FLASH_ASDO
+set_location_assignment PIN_13 -to FLASH_DATA0

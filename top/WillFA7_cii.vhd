@@ -175,7 +175,14 @@ port map(
 	SB_Sound		=> open,
 	SB_Speech		=> open,
 	SB_Test			=> '1',
-	Dip_Ret_4		=> '1'
+	Dip_Ret_4		=> '1',
+
+	-- Configuration flash as ROM source (HAS_FLASH_ROM): not on this board, its EPCS4
+	-- has no room. DATA0 reads '1', which is what an idle flash line reads anyway.
+	FLASH_DCLK		=> open,
+	FLASH_NCS		=> open,
+	FLASH_ASDO		=> open,
+	FLASH_DATA0		=> '1'
 );
 
 end rtl;

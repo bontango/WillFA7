@@ -117,6 +117,7 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. 5 heisst: kein rom0, Fenster 0 des Images wird gelesen und verworfen, 5000h–57FF liest FF, Defender und Star Light laufen nicht. **Seit `.22` kein Kartenformat mehr** – das ist für alle gleich. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
 | `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was die Bytes 12K–32K des Slots dekodiert. **`docs/soundcard_variant.md`** |
+| `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Nur `s_cyclone_iv_v4`, als Hardwaretest**; die anderen folgen, wenn er dort bestanden ist. Abschnitt „Konfigurationsflash" unten. |
 | `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. Überall `true`; `false` spart auf Cyclone II ca. 90 LE, liest dieselbe Karte, merkt aber nichts von einer defekten und zeigt statt der beiden Summen weiter das Build-Datum. |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
@@ -124,8 +125,8 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 
 ### Optionale Ports
 
-`LED_debug`, `USB_Tx`, `USB_Rx`, `debug`, `SB_Sound`, `SB_Speech`, `SB_Test` und `Dip_Ret_4`
-stehen in **jeder** Portliste. Boards ohne den Pin bekommen `VIRTUAL_PIN` aus `variant.psd1`.
+`LED_debug`, `USB_Tx`, `USB_Rx`, `debug`, `SB_Sound`, `SB_Speech`, `SB_Test`, `Dip_Ret_4` und
+die vier `FLASH_*` stehen in **jeder** Portliste. Boards ohne den Pin bekommen `VIRTUAL_PIN` aus `variant.psd1`.
 Das ist keine Kosmetik: ein deklarierter Ausgangsport ohne Location ist für Quartus ein
 *benutzter* Pin, `RESERVE_ALL_UNUSED_PINS` greift dort nicht, und er würde irgendwo auf der
 Platine platziert und getrieben.
@@ -172,6 +173,7 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 | cpu68 | `rtl/common/cpu68.vhd` | Motorola 6800/6801 (OpenCores, John E. Kent, GPL), v0.85 |
 | pia6821 | `rtl/common/pia6821.vhd` | PIA, 5 Instanzen |
 | SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes`. Seit `.22` steht auf allen Varianten dasselbe drin: 128 Sektoren je Spiel, CRC über die ersten 32 KByte |
+| Flash_ROM | `rtl/common/Flash_ROM.vhd` | liest die Spiel-ROMs aus dem EPCS16, wenn `SD_Card` „keine Karte" meldet (`o_no_card`, Fehler 1–4). Nur `HAS_FLASH_ROM` |
 | crc16_ccitt | `rtl/sound/crc16_ccitt.vhd` | LFSR für die Kartenprüfsumme. Liegt aus historischen Gründen unter `rtl/sound/`, gehört seit `.22` aber zu jedem Build |
 | EEprom | `rtl/common/EEprom.vhd` | SPI-EEPROM (M95256 / M95512), Spielstand |
 | williams_pll | `rtl/<familie>/williams_pll.vhd` | 50 MHz → 14,28 MHz |
@@ -301,6 +303,37 @@ Slot je Spiel      128 Sektoren = 64 KByte, Spiel 0 ab Sektor 660
 Karten erzeugt `N:\Projekte\WillFA7\SD image WillFA7 (roms)\make_sd.bat` (ausserhalb des
 Repos). Slot 30 ist Defender, Slot 31 Star Light – beide brauchen die vollen 12 KByte und
 laufen deshalb nicht auf Cyclone II.
+
+## Konfigurationsflash als zweite ROM-Quelle (`HAS_FLASH_ROM`, seit 16.10.2026)
+
+Antwortet keine SD-Karte (`SD_Card` endet in Fehler 1–4, Ausgang `o_no_card`), liest
+`rtl/common/Flash_ROM.vhd` dieselben 32 KByte aus dem EPCS16 und übernimmt ROM-Schreibport,
+`boot_phase(2)` und `LED_SD_Error`. Fehler 5–7 (Karte da, Daten kaputt) fallen **nicht**
+zurück – eine defekte Karte soll sichtbar bleiben. Das kostet rund 1,3 s Bootzeit, so lange
+braucht `SD_Card`, um aufzugeben (500 ms Anlauf, 8 × CMD0).
+
+```
+EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) + Reserve
+         0x080000 + n*0x8000   Spiel n, die ersten 32 KByte seines SD-Slots 1:1
+                               -> Spiel 0..31 bis 0x17FFFF
+```
+
+- **Keine CRC im Flash.** Kein Steckkontakt, kein Dateisystem, und der Programmer prüft beim
+  Schreiben. Geprüft wird nur gegen **leeren** Flash: der Reset-Vektor (Slot 2FFEh/2FFFh =
+  7FFEh) darf nicht FFFF lesen, sonst Fehler **8** (Ziffer 8 vorn auf `error_disp4`,
+  Blinkcode 8), die CPU startet nicht.
+- **Woran man den Flash-Boot erkennt:** `display3`/`display4` zeigen statt der beiden
+  Prüfsummen das Build-Datum.
+- **Die Release-`.jic` bleibt ROM-frei** (Urheberrecht). Wer ROMs im Flash will, baut lokal:
+  `scripts\make_flash_hex.ps1 -Image <Kartenimage> -Out variants\<name>\output_files\willfa7_roms.hex`
+  (oder `-SlotFiles` mit den 64-KByte-Dateien von `make_sd.bat`), dann im Variantenordner
+  `quartus_cpf -c willfa7_roms.cof` → `output_files\willfa7_roms.jic`. Beides liegt unter
+  `output_files\`, das git ignoriert. **Nie nach `bin/`.**
+- **Pins:** die vier Konfigurationspins (E22: DCLK 12, DATA0 13, nCSO 8, ASDO 6) als
+  `FLASH_DCLK`, `FLASH_DATA0`, `FLASH_NCS`, `FLASH_ASDO` in `pins.tcl`; `device.tcl` gibt
+  DATA0, DATA1/ASDO, FLASH_NCE und DCLK nach der Konfiguration als normale I/O frei. Varianten
+  ohne `HAS_FLASH_ROM` führen die Ports als `VIRTUAL_PIN`, Cyclone II lässt sie in der Hülle
+  offen (EPCS4, kein Platz).
 
 ## LED-Ausgänge mit Doppelfunktion
 

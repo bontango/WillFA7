@@ -55,6 +55,10 @@ set_instance_assignment -name VIRTUAL_PIN ON -to SB_Sound
 set_instance_assignment -name VIRTUAL_PIN ON -to SB_Speech
 set_instance_assignment -name VIRTUAL_PIN ON -to SB_Test
 set_instance_assignment -name VIRTUAL_PIN ON -to Dip_Ret_4
+set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_DCLK
+set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_NCS
+set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_ASDO
+set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_DATA0
 
 # --- pins ------------------------------------------------------------------
 set_location_assignment PIN_E1 -to clk_50
@@ -155,6 +159,7 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/detect_sw.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/EEprom.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/Flash_ROM.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/irq_generator.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/one_pulse_only.vhd

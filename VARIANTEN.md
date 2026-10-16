@@ -372,6 +372,29 @@ gelaufen. Die vollständige Liste steht in `docs/soundcard_variant.md`; das Wich
   ganzen Arrays positionsweise zugeordnet wird – Quartus warnt dabei nicht.
 - **DIPs wirken erst nach Neustart** – die 4×4-Matrix wird nur einmal gelesen.
 
+### Zusätzlich: ROMs aus dem Konfigurationsflash (nur WillFA7S, `HAS_FLASH_ROM`)
+
+Neu seit 16.10.2026, nur auf `s_cyclone_iv_v4`. Erst wenn das hier bestanden ist, bekommen
+die anderen Cyclone-IV/10-Varianten die Konstante, Pins und `device.tcl`-Zeilen.
+Vorgehen: `CLAUDE.md`, Abschnitt „Konfigurationsflash".
+
+- **Mit SD-Karte**: bootet wie bisher, Prüfsummen auf `display3`/`display4`. Das Flash darf
+  dabei nichts ändern.
+- **Ohne Karte, `willfa7_roms.jic` gebrannt**: nach ca. 1,3 s Bootversuch der Karte startet
+  das Spiel aus dem Flash; `display3`/`display4` zeigen das Build-Datum. **Mindestens zwei
+  Spielnummern**, eine davon oberhalb von 0 – nur daran fällt eine falsche Slot-Adresse auf.
+  Sound und Sprache mitprüfen (die Sound-ROMs kommen aus denselben 32 KByte).
+- **Ohne Karte, nur die Release-`.jic`** (kein ROM im Flash): Ziffer `8` vorn auf
+  `error_disp4`, Blinkcode 8, kein startendes Spiel.
+- **Karte mit falschem Inhalt** (z. B. `.21`-Karte): weiter Fehler 7, **kein** Rückfall auf
+  das Flash.
+- **Programmer „Verify"** nach dem Brennen von `willfa7_roms.jic` ohne Fehler.
+- **Bit-Reihenfolge** ist der eine Punkt, der sich nur in Hardware klären lässt. Die `.jic`
+  enthält den Bitstream wie die `.rbf` und die ROM-Daten bitgespiegelt – beides wird also
+  gleich behandelt, und `Flash_ROM` liest MSB first, wie das Flash sendet. Startet das Spiel
+  aus dem Flash trotzdem nicht (Fehler 8 trotz gebrannter ROMs, oder wirres Verhalten),
+  sind die Bits je Byte vertauscht: dann in `Flash_ROM.vhd` `data_rom` gespiegelt übernehmen.
+
 ### Zusätzlich für `1.22` (Cyclone II)
 
 - **Vier Pins sind frei geworden.** 1.21 trieb PIN_26, PIN_27 und PIN_73; die neue Hülle tut das

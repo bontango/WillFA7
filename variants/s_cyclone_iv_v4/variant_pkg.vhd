@@ -32,4 +32,9 @@ package variant_pkg is
 	-- slot. This board has done so since 6.03 and every other one does since .22 -
 	-- docs/soundcard_variant.md.
 	constant SD_CHECK_CRC : boolean := true;
+
+	-- Game ROMs from the EPCS16 configuration flash when no SD card answers, see
+	-- rtl/common/Flash_ROM.vhd. Game n at 080000h + n * 8000h, the first 32 KByte of
+	-- its SD card slot. The flash pins are released in device.tcl, placed in pins.tcl.
+	constant HAS_FLASH_ROM : boolean := true;
 end package;

@@ -34,6 +34,10 @@
 --     The fork was still on the v07 code and therefore had none of the Stage A
 --     robustness; that is what this merge is really about. See
 --     docs/soundcard_variant.md.
+-- v12 new output o_no_card: '1' while the read has ended in error 1..4, i.e. no card
+--     answered or its init failed. Starts the flash fallback (Flash_ROM.vhd) on boards
+--     with HAS_FLASH_ROM. Errors 5..7 mean a card is there and its data is bad - they
+--     deliberately do NOT fall back, a broken card has to stay visible.
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -82,6 +86,8 @@ use IEEE.numeric_std.all;
 		cpu_reset_l : out STD_LOGIC;
 		-- feedback
 		SDcard_error : out STD_LOGIC;
+		-- '1' = no usable card (error 1..4), see v12. Stays '1', the error state is final.
+		o_no_card : out STD_LOGIC;
 		-- CRC check, only meaningful with Check_CRC. Constant otherwise, so a variant
 		-- that does not use it pays nothing for the ports.
 		calc_checksum	: out std_logic_vector(15 downto 0); -- computed while reading
@@ -241,6 +247,9 @@ GEN_NO_CRC: if not Check_CRC generate
 end generate;
 
 calc_checksum <= crc_calc;
+
+-- error 1..4: nothing answered or the init failed, see v12
+o_no_card <= '1' when state_A = error and err_code >= 1 and err_code <= 4 else '0';
 
 		
 		SD_Card: process (i_Clk, i_Rst_L )

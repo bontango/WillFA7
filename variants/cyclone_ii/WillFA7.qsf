@@ -138,6 +138,7 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/detect_sw.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/EEprom.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/Flash_ROM.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/irq_generator.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/one_pulse_only.vhd

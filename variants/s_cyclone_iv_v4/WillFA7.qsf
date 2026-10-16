@@ -24,6 +24,10 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
 
 # --- shared globals --------------------------------------------------------
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
@@ -143,6 +147,10 @@ set_location_assignment PIN_39 -to SB_Speech
 set_location_assignment PIN_34 -to SB_Sound
 set_location_assignment PIN_11 -to Dip_Ret_4
 set_location_assignment PIN_42 -to SB_Test
+set_location_assignment PIN_12 -to FLASH_DCLK
+set_location_assignment PIN_8 -to FLASH_NCS
+set_location_assignment PIN_6 -to FLASH_ASDO
+set_location_assignment PIN_13 -to FLASH_DATA0
 
 # --- sources ---------------------------------------------------------------
 set_global_assignment -name VHDL_FILE variant_pkg.vhd
@@ -156,6 +164,7 @@ set_global_assignment -name VHDL_FILE ../../rtl/common/cpu68.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/cpu_clk_gen.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/detect_sw.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/EEprom.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/common/Flash_ROM.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/flipflops.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/irq_generator.vhd
 set_global_assignment -name VHDL_FILE ../../rtl/common/one_pulse_only.vhd

@@ -3,7 +3,7 @@
 --
 -- ONE top level for all board variants. What differs per board lives in
 -- variants/<name>/: variant_pkg.vhd (BOARD_ID, ROM_COUNT, HAS_MONITOR, HAS_SOUND,
--- SD_CHECK_CRC),
+-- SD_CHECK_CRC, HAS_FLASH_ROM),
 -- pins.tcl, device.tcl and WillFA7.sdc. This file must not contain anything board
 -- specific.
 --
@@ -112,7 +112,16 @@ entity WillFA7 is
 		SB_Sound: out std_logic;	-- audio out, delta sigma
 		SB_Speech: out std_logic;	-- was the second delta sigma output, idle since .22
 		SB_Test: in std_logic;		-- sound test push button, pulled up in device.tcl
-		Dip_Ret_4: in std_logic		-- fourth DIP return, turns the 4x3 matrix into 4x4
+		Dip_Ret_4: in std_logic;		-- fourth DIP return, turns the 4x3 matrix into 4x4
+
+		-- Optional as well: the configuration flash as a second source of the game ROMs
+		-- when no SD card is plugged in (HAS_FLASH_ROM). These are the dual purpose pins
+		-- the FPGA configures itself through; the variant's device.tcl releases them as
+		-- regular I/O after configuration. See rtl/common/Flash_ROM.vhd.
+		FLASH_DCLK: out std_logic;
+		FLASH_NCS: out std_logic;
+		FLASH_ASDO: out std_logic;	-- data into the flash
+		FLASH_DATA0: in std_logic	-- data out of the flash
 
 		);
 end;
@@ -257,6 +266,22 @@ signal SDcard_error	:	std_logic:='1'; --active low
 signal crc16			:  std_logic_vector(15 downto 0); -- computed while reading
 signal crc16_r			:  std_logic_vector(15 downto 0); -- read from the end of the slot
 signal crc_error		:  std_logic;
+-- The two ROM loaders. address_sd_card, data_sd_card, wr_rom, boot_phase(2) and
+-- SDcard_error above are what the rest of the design sees; they come from the SD card,
+-- or from the configuration flash when no card answered (HAS_FLASH_ROM, use_flash).
+signal sd_address		:  std_logic_vector(15 downto 0);
+signal sd_data			:  std_logic_vector(7 downto 0);
+signal sd_wr_rom		:  std_logic;
+signal sd_cpu_reset_l	:  std_logic;
+signal sd_error		:  std_logic;
+signal sd_no_card		:  std_logic;
+signal fl_address		:  std_logic_vector(15 downto 0);
+signal fl_data			:  std_logic_vector(7 downto 0);
+signal fl_wr_rom		:  std_logic;
+signal fl_cpu_reset_l	:  std_logic;
+signal fl_error		:  std_logic;
+signal fl_empty		:  std_logic; -- flash slot without data, error 8
+signal use_flash		:  std_logic;
 
 -- EEprom 
 signal address_eeprom	:  std_logic_vector(7 downto 0);
@@ -551,8 +576,12 @@ end generate;
 -- and Cyclone II builds with Quartus 13.0sp1, which does not know it.
 ----------------------------------------------------------------------------
 GEN_CRC_DISP: if SD_CHECK_CRC generate
-	bm_display3    <= ( x"F",x"F", crc16(15 downto 12), crc16(11 downto 8), crc16(7 downto 4), crc16(3 downto 0));
-	bm_display4    <= ( x"F",x"F", crc16_r(15 downto 12), crc16_r(11 downto 8), crc16_r(7 downto 4), crc16_r(3 downto 0));
+	-- ROMs from the configuration flash carry no CRC, so displays 3 and 4 fall back to
+	-- the build date - which is at the same time how you tell that the flash was read.
+	bm_display3    <= ( x"0",x"5",x"0",x"9",x"6",x"3" ) when use_flash = '1' else
+	                  ( x"F",x"F", crc16(15 downto 12), crc16(11 downto 8), crc16(7 downto 4), crc16(3 downto 0));
+	bm_display4    <= ( x"F",x"F",x"F",x"F",b_dig1, b_dig0) when use_flash = '1' else
+	                  ( x"F",x"F", crc16_r(15 downto 12), crc16_r(11 downto 8), crc16_r(7 downto 4), crc16_r(3 downto 0));
 	bm_error_disp4 <= ( crc_dig, x"5",x"6",x"F", b_dig1, b_dig0);
 end generate;
 
@@ -565,8 +594,11 @@ end generate;
 
 -- 7 in the leading digit of the error display means the game data on the card did not
 -- match its CRC, see rtl/common/SD_Card.vhd (blink code 7 on LED_SD_Error). Without
--- Check_CRC crc_error is a constant '0' and this costs nothing.
-crc_dig <= x"7" when crc_error = '1' else x"F";
+-- Check_CRC crc_error is a constant '0' and this costs nothing. 8 means no card and an
+-- empty flash slot (HAS_FLASH_ROM only), see rtl/common/Flash_ROM.vhd.
+crc_dig <= x"7" when crc_error = '1' else
+           x"8" when fl_empty = '1' else
+           x"F";
 
 -----------------------------------------------
 -- phase 1: activated by 'read_the_dips' after first read
@@ -604,19 +636,78 @@ port map(
 	selection => "00" & game_no,
 	--selection => not game_select,
 	-- data
-	address_sd_card => address_sd_card,
-	data_sd_card => data_sd_card,
-	wr_rom => wr_rom,
+	address_sd_card => sd_address,
+	data_sd_card => sd_data,
+	wr_rom => sd_wr_rom,
 	-- feedback
-	SDcard_error => SDcard_error,
+	SDcard_error => sd_error,
+	o_no_card => sd_no_card,
 	-- CRC of the game data; both sums go on the boot display, see below
 	calc_checksum => crc16,
 	read_checksum => crc16_r,
 	crc_error => crc_error,
 	-- control boot phases
-	cpu_reset_l => boot_phase(2)
+	cpu_reset_l => sd_cpu_reset_l
 	);
-	
+
+---------------------
+-- configuration flash as fallback (HAS_FLASH_ROM)
+--
+-- No card answered (SD_Card error 1..4) -> read the same 32 KByte from the flash and
+-- let that loader drive the ROM write port, boot_phase(2) and the error LED instead.
+-- A card that answers but delivers bad data (error 5..7) does not fall back.
+-- Two complementary if-generate, not if/else generate (VHDL-93, see above).
+---------------------
+-- Outside the generates, so that sd_no_card is read on every board and the boards
+-- without HAS_FLASH_ROM do not gain a 'never read' warning. Constant '0' there.
+use_flash <= sd_no_card when HAS_FLASH_ROM else '0';
+
+GEN_FLASH: if HAS_FLASH_ROM generate
+	FLASH_ROM: entity work.Flash_ROM
+	generic map(
+		-- the whole 32 KByte, as SD_Card with the CRC: a board without sound board
+		-- simply drops the upper 20 KByte, nothing in the top level decodes them
+		Read_Bytes => SD_CRC_BYTES,
+		Base_Addr  => 16#080000#,
+		Slot_Bytes => SD_CRC_BYTES
+	)
+	port map(
+		i_Clk => clk_50,
+		i_Rst_L => sd_no_card,
+		o_Flash_Clk  => FLASH_DCLK,
+		o_Flash_CS_n => FLASH_NCS,
+		o_Flash_MOSI => FLASH_ASDO,
+		i_Flash_MISO => FLASH_DATA0,
+		selection => "00" & game_no,
+		address_rom => fl_address,
+		data_rom => fl_data,
+		wr_rom => fl_wr_rom,
+		cpu_reset_l => fl_cpu_reset_l,
+		Flash_error => fl_error,
+		flash_empty => fl_empty
+		);
+
+	address_sd_card <= fl_address when use_flash = '1' else sd_address;
+	data_sd_card    <= fl_data when use_flash = '1' else sd_data;
+	wr_rom          <= fl_wr_rom when use_flash = '1' else sd_wr_rom;
+	boot_phase(2)   <= fl_cpu_reset_l when use_flash = '1' else sd_cpu_reset_l;
+	SDcard_error    <= fl_error when use_flash = '1' else sd_error;
+end generate;
+
+GEN_FLASH_OFF: if not HAS_FLASH_ROM generate
+	fl_empty  <= '0';
+	address_sd_card <= sd_address;
+	data_sd_card    <= sd_data;
+	wr_rom          <= sd_wr_rom;
+	boot_phase(2)   <= sd_cpu_reset_l;
+	SDcard_error    <= sd_error;
+	-- outputs must be driven; on these boards they are VIRTUAL_PIN (or, on Cyclone II,
+	-- left open in the shell) and disappear
+	FLASH_DCLK <= '0';
+	FLASH_NCS  <= '1';
+	FLASH_ASDO <= '0';
+end generate;
+
 -----------------------------------------------
 -- phase 2: activated by SD card read
 -- read eeprom, read/write to ram

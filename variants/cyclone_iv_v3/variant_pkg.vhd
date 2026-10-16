@@ -27,4 +27,9 @@ package variant_pkg is
 	-- slot. One card format for every board since .22 - docs/soundcard_variant.md.
 	-- The only reason to turn this off is logic elements, which is a Cyclone II topic.
 	constant SD_CHECK_CRC : boolean := true;
+
+	-- Game ROMs from the configuration flash when no SD card answers
+	-- (rtl/common/Flash_ROM.vhd). Only on WillFA7S so far, as a hardware test;
+	-- the other boards follow once it has passed there.
+	constant HAS_FLASH_ROM : boolean := false;
 end package;
