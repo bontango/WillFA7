@@ -4,13 +4,13 @@
 
 **Hardware version v1.3**
 
-**Software Version x.22**
+**Software Version x.30**
 
 **user manual**
 
 ralf@lisy.dev
 
-v1.22 04.08.2026
+v1.30 16.10.2026
 
 ## Table of contents
 
@@ -137,15 +137,15 @@ Player 1: version of the FPGA program running
 
 Player 2: value of selected game on S1 (game select)
 
-Player 3: checksum of the game data computed while reading the card (four hex digits)
+Player 3: build date of the FPGA program
 
-Player 4: checksum stored on the card (four hex digits) - **the two have to be identical**
+Player 4: boot phase
 
 Credit Display: value of the option switches S2 (game options)
 
-Until version .21 player 3 showed a fixed build date and player 4 the boot phase. Both moved
-aside for the two checksums with .22; the boot phase is still shown on player 4 whenever the
-'SD card error' LED is on, together with the error digit.
+Versions .22 to .2x showed two checksums of the card on player 3 and 4. Since x.30 the card
+carries no checksum any more, and the two displays are back to the build date and the boot
+phase.
 
 **Seven digit displays.** Games marked `SYS6A` or `SYS7` in appendix A came with seven
 digit player displays instead of six. WillFA7 knows this from the game number and moves the
@@ -167,10 +167,9 @@ The red LED also blinks a code that tells you what went wrong. Count the blinks;
 | 4      | the card never finished its initialisation                            |
 | 5      | no data arrived from the card                                         |
 | 6      | the card reported a read error                                        |
-| 7      | the game data on the card does not match its checksum - see chapter 8 |
 
-Code 7 is what you get if you put a card made for version .21 or older into a .22 board. The
-card layout changed with .22, see chapter 8.
+Code 7 (checksum mismatch) existed with versions .22 to .2x only. Since x.30 there is no
+checksum on the card any more.
 
 ### 5.3. Phase 3: program execution
 
@@ -252,31 +251,26 @@ With game select all '0' WillFA7 will try to read the first rom image at sector 
 
 **My WillFA7 SD card image has almost all available roms 'on board'. See appendix A for a gamelist**
 
-**Important for anyone updating from .21 or older:** the card layout changed with version .22.
-There used to be three of them - 10 KByte per game for Cyclone II, 12 KByte for Cyclone IV and
-Cyclone 10, 64 KByte for WillFA7S. Now there is one, the WillFA7S one, and it works on every
-board. **Your old card will not run on a .22 board**; it reports error code 7 (see chapter 5.2)
-instead of starting a game, which is deliberate - a wrong game image is worse than a clear error.
-Write the current image to your card and you are done.
+**Important when updating:** since version x.30 every board uses the **x.20 card** again
+(12 KByte per game) - Cyclone II included. A card that ran with an x.20 Cyclone IV program
+runs unchanged. A card made for .22 does **not**: write the current image.
+
+The current image has a second area behind the games with the sound board roms of WillFA7S.
+Boards without a sound board simply never read it.
 
 ### 8.2. Use your own roms
 
 The SD card image holds one slot per game number, so a rom set can be exchanged without changing the FPGA program.
 
-Every slot is 128 sectors of 512 bytes, that is 64 KByte, and the first slot starts at sector 660. The slot of a game therefore starts at sector 660 + game number x 128, with the game number being the value set on switch S1 (see Appendix A).
-
-A slot is filled like this:
+Every slot is 24 sectors of 512 bytes, that is 12 KByte, and the first slot starts at sector 660. The slot of a game therefore starts at sector 660 + game number x 24, with the game number being the value set on switch S1 (see Appendix A).
 
 | Offset in the slot | Size | Content |
 |---|---|---|
 | 0x0000 - 0x2FFF | 12 KByte | game roms, 6 x 2K, seen by the MPU from \$5000 on |
-| 0x3000 - 0x7FFF | 20 KByte | sound board roms - only WillFA7S uses them, but they belong on every card |
-| 0x8000 - 0xFFFD | | unused |
-| 0xFFFE - 0xFFFF | 2 bytes | checksum, CRC16-CCITT over the first 32 KByte of the slot |
 
-Write your rom set to that position with a sector editor. It is read as one block and has to be complete. Boards with Cyclone IV or Cyclone 10 use all 12 KByte of game rom; boards with Cyclone II have one rom block less and ignore the first 2 KByte, so the games that need the full 12 KByte (Defender, Star Light) do not run there.
+The sound board roms (WillFA7S only) are a separate area: 40 sectors = 20 KByte per game from sector 1428 + game number x 40.
 
-**And you have to fix up the checksum.** After changing anything in the first 32 KByte of a slot, recompute the CRC16-CCITT over those 32 KByte and write it to 0xFFFE / 0xFFFF of the slot - otherwise the board refuses to start the game with error code 7. While reading, the board shows the computed checksum on display 3 and the one it read from the card on display 4; if they differ, you can see it right there.
+Write your rom set to that position with a sector editor. It is read as one block and has to be complete. Boards with Cyclone IV or Cyclone 10 use all 12 KByte of game rom; boards with Cyclone II have one rom block less and ignore the first 2 KByte, so the games that need the full 12 KByte (Defender, Star Light) do not run there. There is no checksum to fix up.
 
 ## Appendix A 'game select'
 

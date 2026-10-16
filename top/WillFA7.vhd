@@ -128,18 +128,33 @@ end;
 
 architecture rtl of WillFA7 is
 
--- SD card layout. ONE format for every board since .22 - what used to be the WillFA7S
--- card is now the card. A slot is 128 sectors = 64 KByte, of which the first 12 KByte
--- are the MPU ROMs, 12..32 KByte the sound board ROMs (read by the S board only, read
--- and dropped by everyone else) and the last two bytes the expected CRC16-CCITT over
--- the first 32 KByte. Layout: docs/soundcard_variant.md section 4.
+-- SD card layout since x.30: the x.20 Cyclone IV card again, for EVERY board, plus a
+-- sound area behind it. No CRC any more.
 --
--- Before .22 there were three formats: 10 KByte from 5800h on Cyclone II, 12 KByte from
--- 5000h on the others, 64 KByte on WillFA7S. The first two are gone - a .21 card does
--- not boot on .22 and reports itself as a CRC error, which is the point.
-constant SD_SLOT_SECTORS : integer := 128;   -- 64 KByte per game
-constant SD_MPU_BYTES    : integer := 12288; -- MPU ROM payload, 6 x 2K
-constant SD_CRC_BYTES    : integer := 32768; -- what the CRC on the card covers
+--   sector 660 + n * 24     game n, 12 KByte MPU ROMs, 6 x 2K -> 5000h..7FFFh
+--                           (Cyclone II, ROM_COUNT = 5, reads window 0 and drops it)
+--   sector 1428 + n * 40    game n, 20 KByte sound board ROMs, 5 x 4K
+--                           (1428 = 660 + 32 * 24, read by HAS_SOUND boards only)
+--
+-- An x.20 Cyclone IV card therefore runs unchanged on every board without a sound
+-- board. Written by make_sd.bat (image version 4). .22 had 64 KByte slots with a CRC16
+-- in the last two bytes - that card does not boot on x.30.
+constant SD_SLOT_SECTORS  : integer := 24;    -- 12 KByte per game
+constant SD_MPU_BYTES     : integer := 12288; -- MPU ROM payload, 6 x 2K
+constant SD_SOUND_SECTOR  : integer := 1428;  -- start of the sound area
+constant SD_SOUND_SECTORS : integer := 40;    -- 20 KByte per game
+constant SD_CRC_BYTES     : integer := 32768; -- MPU + sound, also the flash slot size
+
+-- Sound board ROM bytes the SD card loader reads in its second pass. VHDL-93 has no
+-- conditional expression, hence the function.
+function sd_sound_bytes(has_sound : boolean) return integer is
+begin
+	if has_sound then
+		return 20480;
+	else
+		return 0;
+	end if;
+end function;
 
 signal cpu_clk		:  std_logic;  --894KHz for Williams
 signal mem_clk		:  std_logic;  --894KHz shifted for mem access without glitches
@@ -261,8 +276,8 @@ signal wr_system_rom			:  std_logic;
 signal SDcard_MOSI	:	std_logic;
 signal SDcard_CLK		:	std_logic;
 signal SDcard_error	:	std_logic:='1'; --active low
--- CRC of the game data on the card. Every card carries one since .22, so unless a board
--- turns SD_CHECK_CRC off these are live signals and go on the boot display.
+-- CRC of the game data on the card. Only with SD_CHECK_CRC, which is off everywhere
+-- since x.30 (the card carries no CRC any more) - constants then.
 signal crc16			:  std_logic_vector(15 downto 0); -- computed while reading
 signal crc16_r			:  std_logic_vector(15 downto 0); -- read from the end of the slot
 signal crc_error		:  std_logic;
@@ -589,7 +604,8 @@ GEN_CRC_DISP_OFF: if not SD_CHECK_CRC generate
 	-- build date and boot phase, the boot message as it was before .22
 	bm_display3    <= ( x"0",x"5",x"0",x"9",x"6",x"3" );
 	bm_display4    <= ( x"F",x"F",x"F",x"F",b_dig1, b_dig0);
-	bm_error_disp4 <= ( x"F",x"5",x"6",x"F",b_dig1, b_dig0);
+	-- crc_dig: no CRC here, but the 8 of an empty flash slot (HAS_FLASH_ROM)
+	bm_error_disp4 <= ( crc_dig, x"5",x"6",x"F",b_dig1, b_dig0);
 end generate;
 
 -- 7 in the leading digit of the error display means the game data on the card did not
@@ -614,14 +630,17 @@ SPI_CLK <= SDcard_CLK when boot_phase(2) = '0' else EEprom_CLK;
 ----------------------
 SD_CARD: entity work.SD_Card
 generic map(
-	-- Read_Bytes only decides where the read stops WITHOUT a CRC check - with one the
-	-- read runs to the end of the slot anyway, because that is where the expected
-	-- checksum sits. So this is the MPU payload, not ROM_COUNT*2048: a five ROM board
-	-- still has to read past its own blocks, it just drops the first 2K window.
+	-- The MPU payload, not ROM_COUNT*2048: a five ROM board still reads all six
+	-- windows, it just drops the first one.
 	Read_Bytes   => SD_MPU_BYTES,
 	Slot_Sectors => SD_SLOT_SECTORS,
-	Check_CRC    => SD_CHECK_CRC,   -- per board, see variant_pkg.vhd
-	CRC_Bytes    => SD_CRC_BYTES
+	Check_CRC    => SD_CHECK_CRC,   -- false everywhere since x.30, see variant_pkg.vhd
+	CRC_Bytes    => SD_CRC_BYTES,
+	-- second read for the sound board ROMs, HAS_SOUND only
+	Sound_Bytes        => sd_sound_bytes(HAS_SOUND),
+	Sound_Sector       => SD_SOUND_SECTOR,
+	Sound_Slot_Sectors => SD_SOUND_SECTORS,
+	Sound_Offset       => SD_MPU_BYTES
 )
 port map(
 	i_clk		=> clk_50,
@@ -665,8 +684,8 @@ use_flash <= sd_no_card when HAS_FLASH_ROM else '0';
 GEN_FLASH: if HAS_FLASH_ROM generate
 	FLASH_ROM: entity work.Flash_ROM
 	generic map(
-		-- the whole 32 KByte, as SD_Card with the CRC: a board without sound board
-		-- simply drops the upper 20 KByte, nothing in the top level decodes them
+		-- the whole 32 KByte slot, MPU and sound ROMs in one: a board without sound
+		-- board simply drops the upper 20 KByte, nothing in the top level decodes them
 		Read_Bytes => SD_CRC_BYTES,
 		Base_Addr  => 16#080000#,
 		Slot_Bytes => SD_CRC_BYTES
@@ -1632,7 +1651,8 @@ begin
 	----------------------------------------------------------------------------
 	-- SD card windows for the sound board ROMs
 	-- 0..12K are the MPU ROMs (decoded further up), 12K..32K the five sound board
-	-- ROM blocks. Everything above is padding plus the CRC. docs/soundcard_variant.md
+	-- ROM blocks. Since x.30 those come from the second SD read (sound area from
+	-- sector 1428) or from the upper 20 KByte of the flash slot. docs/soundcard_variant.md
 	----------------------------------------------------------------------------
 	wr_sbrom1 <= '1' when address_sd_card(15 downto 12) = "0011" and wr_rom='1' else '0'; --12..16 k
 	wr_sbrom2 <= '1' when address_sd_card(15 downto 12) = "0100" and wr_rom='1' else '0'; --16..20 k

@@ -87,60 +87,28 @@ Auf der Credit-Anzeige stehen die **Soundkarten-Optionen links, die Spieloptione
 - Die Anzeige `CONVSBO` konkateniert aus demselben Grund explizit
   `sb_option(4) & sb_option(3) & sb_option(2) & sb_option(1)`.
 
-## 4. SD-Kartenformat: seit `.22` kein Unterschied mehr
+## 4. SD-Kartenformat: seit x.30 zwei Bereiche auf der Karte
 
-**Dieser Abschnitt beschreibt seit `.22` keine Besonderheit der S-Platine mehr, sondern das
-Kartenformat aller sechs Varianten.** Er steht hier, weil das Format von dieser Platine kommt.
-
-Bis `.21` gab es drei Formate:
-
-| | Cyclone II | Cyclone IV / 10 | WillFA7S |
-|---|---|---|---|
-| Startsektor Spiel 0 | 660 | 660 | 660 |
-| Slot je Spiel | 24 Sektoren = 12 KByte | 24 Sektoren = 12 KByte | 128 Sektoren = 64 KByte |
-| Nutzlast | 10 KByte, erstes 2K-Fenster auf **5800h** | 12 KByte, erstes 2K-Fenster auf 5000h | 12 KByte MPU + 20 KByte Sound |
-| CRC | nein | nein | ja |
-
-Seit `.22` gilt die rechte Spalte überall. Belegung eines Slots:
+Bis `.21` hatte diese Platine ein eigenes Format (64-KByte-Slots mit CRC16), mit `.22` wurde
+es das Format aller Varianten. **Seit x.30 ist es abgelöst:** alle Boards lesen wieder die
+x.20-Karte der Cyclone IV, und die Sound-ROMs liegen in einem eigenen Bereich dahinter.
 
 ```
-0x0000 - 0x2FFF   12 KByte   MPU-ROMs, 6 x 2K  -> Adressraum 5000h..7FFFh
-0x3000 - 0x7FFF   20 KByte   Soundkarten-ROMs, 5 x 4K
-0x8000 - 0xFFFD            frei
-0xFFFE - 0xFFFF    2 Byte    erwartete CRC16-CCITT ueber die ersten 32 KByte
+Sektor 660 + n*24     Spiel n, 12 KByte MPU-ROMs        -> address_sd_card 0000h..2FFFh
+Sektor 1428 + n*40    Spiel n, 20 KByte Soundkarten-ROMs -> address_sd_card 3000h..7FFFh
 ```
 
-Was eine Variante ohne Soundkarte damit macht: sie liest den Bereich 12K–32K mit, dekodiert ihn
-aber nicht – kein `wr_rom`-Fenster trifft ihn, die Bytes laufen durch den CRC und werden
-verworfen. Ein Board mit `ROM_COUNT = 5` (Cyclone II) lässt zusätzlich **Fenster 0 liegen**;
-es verschiebt die anderen fünf nicht nach unten, wie es das alte 10-KByte-Image verlangt hat.
-Deshalb bootet eine `.21`-Karte unter `.22` nicht mehr.
+`SD_Card` liest dafür zweimal (Generic `Sound_Bytes = 20480`, nur bei `HAS_SOUND`): erst die
+MPU-ROMs, nach CMD12 und 100 ms Pause ein zweites CMD18 auf den Soundbereich. Die Dekodierung
+der fünf Sound-ROM-Fenster im Top-Level ist unverändert – sie sieht dieselben Adressen wie
+vorher aus dem 64-KByte-Slot.
 
-Preis des gemeinsamen Formats: der ganze Slot wird gelesen, also 64 statt 12 KByte bei 400 kHz –
-rund **eine Sekunde mehr Bootzeit** auf den Varianten, die vorher 12 KByte gelesen haben.
+## 5. CRC-Prüfung: seit x.30 aus
 
-## 5. CRC-Prüfung beim Laden
-
-`rtl/sound/crc16_ccitt.vhd` läuft über jedes geschriebene Byte unterhalb `CRC_Bytes` mit
-(Generic in `rtl/common/SD_Card.vhd`, überall 32768). Am Slot-Ende werden die letzten beiden Bytes
-zu `read_checksum`, und der Zustand `verify_crc` vergleicht. Auch das ist seit `.22` auf **jeder**
-Variante scharf, geschaltet von `SD_CHECK_CRC` in `variants/<name>/variant_pkg.vhd`.
-
-Sichtbar wird das in der Bootanzeige:
-
-| Anzeige | Inhalt |
-|---|---|
-| `display3` | gerechnete Summe, vier Hex-Stellen |
-| `display4` | gelesene Summe, vier Hex-Stellen |
-| `error_disp4` | erste Ziffer `7` bei CRC-Fehler, sonst `F` |
-
-Bei Abweichung geht der Lauf in `error`, `LED_SD_Error` blinkt den Code **7**, und die CPU startet
-nicht – ein falsches Spiel laufen zu lassen wäre schlimmer als die Fehleranzeige.
-
-`SD_CHECK_CRC = false` ist die Rückfallebene, falls einer Variante die Logikzellen ausgehen: das
-Kartenformat bleibt dasselbe, der Lauf endet nach den 12 KByte MPU-Nutzlast, und `display3`/`4`
-zeigen weiter das Build-Datum statt zweier Summen, die nie verglichen wurden. Auf Cyclone II
-kostet die Prüfung 92 LE und passt (4404 von 4608), deshalb ist sie dort an.
+`SD_CHECK_CRC` ist auf allen Varianten `false`, die Karte trägt keine Prüfsumme mehr.
+`display3`/`display4` zeigen das Build-Datum, `error_disp4` beginnt nur noch bei Fehler 8 (leerer
+Flash-Slot, `HAS_FLASH_ROM`) mit einer Ziffer. Die CRC-Logik (`rtl/sound/crc16_ccitt.vhd`,
+`verify_crc` in `SD_Card`) ist geblieben, aber nicht mit dem zweiten Lesedurchgang kombinierbar.
 
 ## 6. Sound-Quelle: seit `.22` automatisch
 

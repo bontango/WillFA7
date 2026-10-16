@@ -21,9 +21,9 @@ Everything is collected in **`../../docs/soundcard_variant.md`**. The short vers
   PIN_11 carries a fourth DIP return. The other 78 are identical to `cyclone_iv_v4`.
 - **A 4x4 DIP matrix** instead of 4x3, with the strobes multiplexed onto `sw_strobe(7,5,3,1)`
   during boot phase 1. Read once, not continuously - **DIP changes need a restart.**
-- **A different SD card format**: 64 KByte per game instead of 12, with a CRC16-CCITT in the
-  last two bytes of the slot. A standard card does not boot here, and this card does not boot
-  on a standard board.
+- **A second area on the SD card** (since x.30): the card is the one every board reads
+  (12 KByte per game from sector 660, no CRC), and behind it the sound board ROMs, 20 KByte
+  per game from sector 1428. Only this board reads that area, in a second pass.
 - **A second 6802** (`rtl/sound/WISOF.vhd`) with its own PIA, 128 byte RAM, five 4 KByte ROM
   blocks, a CVSD speech decoder and one delta sigma DAC carrying sound and speech mixed.
   Only `SB_Sound` reaches the amplifier on this board; `SB_Speech` is pinned but idle.

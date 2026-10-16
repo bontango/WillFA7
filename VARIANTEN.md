@@ -313,13 +313,11 @@ Abschnitt – mit Datum, Spiel und Fundstelle.
 ### Für jedes Board
 
 - **Bootanzeige** zeigt `x.22` – zugleich der Beweis, dass `variant_pkg` und `version_pkg` greifen.
-- **SD-Boot**: Spiel startet normal – **mit einer Karte im neuen Format** (64-KByte-Slots,
-  `make_sd.bat`). Ein Spiel **oberhalb von Slot 0** ist dabei Pflicht: nur daran fällt auf, ob
-  die 128 Sektoren richtig gerechnet werden. Bei `cyclone_ii` zusätzlich der Beweis, dass die
-  ersten 2 KByte des Slots übersprungen werden.
-- **CRC**: `display3` und `display4` zeigen dieselbe vierstellige Summe. Gegenprobe mit einer
-  alten `.21`-Karte: erwartet werden Fehlerziffer `7` und Blinkcode 7 – **kein** startendes
-  Spiel.
+- **SD-Boot (x.30)**: Spiel startet normal mit einer Karte von `make_sd.bat` (Image-Version 4)
+  **und** mit einer alten x.20-Cyclone-IV-Karte. Ein Spiel **oberhalb von Slot 0** ist Pflicht:
+  nur daran fällt auf, ob die 24 Sektoren richtig gerechnet werden. Bei `cyclone_ii` zusätzlich
+  der Beweis, dass die ersten 2 KByte des Slots übersprungen werden – mit derselben Karte.
+- **Keine CRC mehr**: `display3`/`display4` zeigen das Build-Datum.
 - **Blanking**: `LED_active` führt ausschließlich `blanking`, kein Einbruch ~6 s nach Boot
   und bei EEprom-Save.
 - **DIP4** ON = 250 µs Spezialsolenoid-Entprellung, OFF = 57 µs.
@@ -344,10 +342,10 @@ Abschnitt – mit Datum, Spiel und Fundstelle.
 Diese Variante macht den größten Sprung – von `.03` auf `.22` – und ist noch nie in Hardware
 gelaufen. Die vollständige Liste steht in `docs/soundcard_variant.md`; das Wichtigste:
 
-- **SD-Karte im 64-KByte-Format** mit korrekter CRC16-CCITT auf `0xFFFE/0xFFFF`. Eine
-  Standardkarte bootet hier nicht.
-- **CRC-Anzeige**: `display3` (gerechnet) und `display4` (gelesen) müssen übereinstimmen. Bei
-  Abweichung Fehlerziffer `7` und Blinkcode 7 auf `LED_SD_Error`, die CPU startet nicht.
+- **SD-Karte Image-Version 4**: MPU-ROMs ab Sektor 660, Sound-ROMs ab Sektor 1428. **Sound
+  ist hier der Prüfpunkt des zweiten Lesedurchgangs** – fehlt er oder klingt ein Spiel nach dem
+  falschen Spiel, stimmt die Sound-Sektorrechnung nicht. Mit einer x.20-Karte (ohne
+  Soundbereich) startet das Spiel, der Sound aber nicht.
 - **Sound und Sprache** spielen. **Sprache ist der eigentliche Prüfpunkt:** bis `.22` lag der
   CVSD-Dekoder auf zwei Fehlern (kein Filterabfall, unipolarer Integrator) und sein DAC lief mit
   763 Hz effektiver Abtastrate auf `SB_Speech` – einem Pin, der gar nicht am Verstärker hängt.
@@ -386,8 +384,8 @@ Vorgehen: `CLAUDE.md`, Abschnitt „Konfigurationsflash".
   Sound und Sprache mitprüfen (die Sound-ROMs kommen aus denselben 32 KByte).
 - **Ohne Karte, nur die Release-`.jic`** (kein ROM im Flash): Ziffer `8` vorn auf
   `error_disp4`, Blinkcode 8, kein startendes Spiel.
-- **Karte mit falschem Inhalt** (z. B. `.21`-Karte): weiter Fehler 7, **kein** Rückfall auf
-  das Flash.
+- **Karte da, aber kaputt** (Fehler 5 oder 6): **kein** Rückfall auf das Flash. Fehler 7
+  gibt es seit x.30 nicht mehr (keine CRC).
 - **Programmer „Verify"** nach dem Brennen von `willfa7_roms.jic` ohne Fehler.
 - **Bit-Reihenfolge** ist der eine Punkt, der sich nur in Hardware klären lässt. Die `.jic`
   enthält den Bitstream wie die `.rbf` und die ROM-Daten bitgespiegelt – beides wird also

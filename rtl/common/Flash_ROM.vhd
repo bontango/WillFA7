@@ -10,8 +10,10 @@
 -- willfa7_roms.cof of the variant):
 --     0x000000 - 0x07FFFF   bitstream plus reserve
 --     Base_Addr + n * Slot_Bytes
---                           game n, the first 32 KByte of its SD card slot 1:1:
+--                           game n, 32 KByte:
 --                           0x0000-0x2FFF MPU ROMs, 0x3000-0x7FFF sound board ROMs
+--                           (on the SD card these are two areas since x.30, see
+--                           SD_Card.vhd v13 - in the flash they sit together)
 --
 -- No CRC. The flash has no contacts and no file system, and the data is verified by
 -- the programmer when it is written. What is left is a check against an EMPTY flash

@@ -4,13 +4,13 @@
 
 **Hardware version v1.0**
 
-**Software Version 6.22**
+**Software Version 6.30**
 
 **user manual**
 
 ralf@lisy.dev
 
-v1.22 04.08.2026
+v1.30 16.10.2026
 
 ## Table of contents
 
@@ -40,9 +40,7 @@ v1.22 04.08.2026
   - [7.5. Games with limited sound support](#75-games-with-limited-sound-support)
 - [8. Software, SD card image and programming the FPGA](#8-software-sd-card-image-and-programming-the-fpga)
 - [9. Structure of SD card](#9-structure-of-sd-card)
-  - [9.1. Slot layout](#91-slot-layout)
-  - [9.2. The CRC](#92-the-crc)
-  - [9.3. Use your own roms](#93-use-your-own-roms)
+  - [9.1. Use your own roms](#91-use-your-own-roms)
 - [Appendix A 'game select'](#appendix-a-game-select)
 
 ## Important remark
@@ -67,7 +65,7 @@ The FPGA is a Cyclone IV EP4CE10 - bigger than the one on the plain WillFA7 boar
 
 **Two things are different from the very start, please read them before you begin:**
 
-- **The SD card is the same one every WillFA7 uses** - since software version .22. The layout with 64 KByte per game started here, because the sound board roms travel on the card as well, and it is now the layout of all boards. A card written for .21 or older does not boot on any of them. See chapter 9.
+- **The SD card is the same one every WillFA7 uses.** Since software version x.30 that is the x.20 card of the other boards, with a second area behind the games that holds the sound board roms. Only WillFA7S reads that area. See chapter 9.
 
 - **There is one more DIP bank**, S5 with four switches, for the sound board options. See chapter 4.3.
 
@@ -193,7 +191,7 @@ has to be set for this.
 
 ### 5.2. Phase 2: SD card read
 
-WillFA7S reads 64 KByte from the card: the game roms, the sound board roms and the checksum. If this fails the red LED 'SD card error' will go ON and '56' will be shown on display 4.
+WillFA7S reads the card twice: first the 12 KByte of game roms, then the 20 KByte of sound board roms. If this fails the red LED 'SD card error' will go ON and '56' will be shown on display 4.
 
 The red LED also blinks a code that tells you what went wrong. Count the blinks; after the last one there is a pause of about 2 seconds, then the group repeats.
 
@@ -205,9 +203,8 @@ The red LED also blinks a code that tells you what went wrong. Count the blinks;
 | 4      | the card never finished its initialisation                            |
 | 5      | no data arrived from the card                                         |
 | 6      | the card reported a read error                                        |
-| 7      | **checksum mismatch** - the game data on the card is not intact       |
 
-Code 7 only exists on WillFA7S. See chapter 9.2.
+Code 7 (checksum mismatch) existed with versions 6.03 to 6.2x only. Since 6.30 the card carries no checksum.
 
 ### 5.3. Phase 3: program execution
 
@@ -289,43 +286,26 @@ You will find there:
 
 - which programmer software you need, how to install the driver for the USB Blaster and how to program the FPGA
 
-**Make sure you take the WillFA7S version of the FPGA program** - it shows a version starting with 6. The SD card image is the same one all WillFA7 boards use since .22.
+**Make sure you take the WillFA7S version of the FPGA program** - it shows a version starting with 6. The SD card image is the same one all WillFA7 boards use.
 
 ## 9. Structure of SD card
 
 Due to limitations of the SD card read routine in the FPGA (it does read fix sector numbers instead of looking for filenames) it is necessary to use my SD-card image. You can write the image to a SD-card of your choice.
 
-The first slot starts at sector 660 and a slot is 128 sectors of 512 bytes, that is 64 KByte per game. The slot of a game starts at sector 660 + game number x 128. Since software .22 this is the layout of every WillFA7 board, not only of this one - the other boards read the game roms out of the first 12 KByte and skip the rest of the slot.
-
-### 9.1. Slot layout
+The card holds two areas, both with one slot per game number:
 
 ```
-0x0000 - 0x2FFF   12 KByte   game roms, 6 x 2K   -> the MPU sees them from $5000 on
-0x3000 - 0x7FFF   20 KByte   sound board roms, 5 x 4K
-0x8000 - 0xFFFD              free
-0xFFFE - 0xFFFF    2 Byte    checksum (CRC16-CCITT) over the first 32 KByte
+sector 660 + game number x 24     12 KByte  game roms, 6 x 2K -> the MPU sees them from $5000 on
+sector 1428 + game number x 40    20 KByte  sound board roms, 5 x 4K
 ```
 
-The sound board roms sit on every card, also on the ones used with boards that have no sound board - those read the block and throw it away. That is what makes one image work everywhere.
+The first area is exactly the card of the boards without a sound board, so one image works everywhere; those boards never read the second area. There is no checksum (versions 6.03 to 6.2x had 64 KByte slots with a CRC16 - such a card does not boot on 6.30).
 
-### 9.2. The CRC
-
-WillFA7S computes a checksum over the game data while it reads the card and compares it with the value stored in the last two bytes of the slot. Since .22 every WillFA7 board does this.
-
-- during boot the computed value is on player display 3 and the stored value on player display 4, **they must be identical**
-- if they differ, the red 'SD card error' LED blinks the code **7**, the error display shows a leading **7**, and **the game does not start**
-
-That last part is on purpose. Running a game from rom data that is known to be damaged would be worse than showing an error.
-
-If you get code 7: rewrite the card image, and if it happens again try a different card.
-
-### 9.3. Use your own roms
+### 9.1. Use your own roms
 
 The SD card image holds one slot per game number, so a rom set can be exchanged without changing the FPGA program.
 
-Write your rom set to the position given above with a sector editor. It is read as one block and has to be complete: 12 KByte of game roms, then the 20 KByte of sound board roms.
-
-**And you have to fix up the checksum.** After changing anything in the first 32 KByte of a slot, the CRC16-CCITT over those 32 KByte has to be recomputed and written to 0xFFFE / 0xFFFF of the slot, otherwise the board will refuse to start the game with error code 7.
+Write your rom set to the two positions given above with a sector editor: 12 KByte of game roms into the first area, 20 KByte of sound board roms into the second. Each part is read as one block and has to be complete.
 
 ## Appendix A 'game select'
 

@@ -20,5 +20,5 @@
     TopEntity   = 'WillFA7_cii'
     VirtualPins = @()
 
-    Notes       = 'Quartus 13.0sp1. 94 % logic elements - check every addition with quartus_fit. 5 ROMs, 10 KByte SD image. Builds through the WillFA7_cii shell, VIRTUAL_PIN does not work here.'
+    Notes       = 'Quartus 13.0sp1. 94 % logic elements - check every addition with quartus_fit. 5 ROMs, reads the shared 12 KByte card since x.30 and drops window 0. Builds through the WillFA7_cii shell, VIRTUAL_PIN does not work here.'
 }

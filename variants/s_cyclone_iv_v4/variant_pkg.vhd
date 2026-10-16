@@ -28,13 +28,12 @@ package variant_pkg is
 	-- DIP matrix. It is also the only board that decodes bytes 12K..32K of the slot.
 	constant HAS_SOUND : boolean := true;
 
-	-- Check the CRC16-CCITT the card carries in the last two bytes of the 64 KByte
-	-- slot. This board has done so since 6.03 and every other one does since .22 -
-	-- docs/soundcard_variant.md.
-	constant SD_CHECK_CRC : boolean := true;
+	-- CRC16-CCITT check of the SD card. Off on every board since x.30: the card is the
+	-- x.20 one again (12 KByte slots, no CRC). The logic stays in SD_Card.vhd.
+	constant SD_CHECK_CRC : boolean := false;
 
 	-- Game ROMs from the EPCS16 configuration flash when no SD card answers, see
-	-- rtl/common/Flash_ROM.vhd. Game n at 080000h + n * 8000h, the first 32 KByte of
-	-- its SD card slot. The flash pins are released in device.tcl, placed in pins.tcl.
+	-- rtl/common/Flash_ROM.vhd. Game n at 080000h + n * 8000h: 12 KByte MPU ROMs, then
+	-- 20 KByte sound board ROMs, the two parts the SD card keeps in separate areas. The flash pins are released in device.tcl, placed in pins.tcl.
 	constant HAS_FLASH_ROM : boolean := true;
 end package;

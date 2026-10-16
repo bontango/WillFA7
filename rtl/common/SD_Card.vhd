@@ -38,6 +38,12 @@
 --     answered or its init failed. Starts the flash fallback (Flash_ROM.vhd) on boards
 --     with HAS_FLASH_ROM. Errors 5..7 mean a card is there and its data is bad - they
 --     deliberately do NOT fall back, a broken card has to stay visible.
+-- v13 back to the x.20 card layout (12 KByte, 24 sector slots, no CRC) for every board,
+--     plus a second read for the sound board ROMs (generics Sound_Bytes, Sound_Sector,
+--     Sound_Slot_Sectors, Sound_Offset): after the MPU ROMs a second CMD18 reads
+--     Sound_Bytes from Sound_Sector + selection * Sound_Slot_Sectors into the address
+--     range from Sound_Offset on. Sound_Bytes = 0 (default) leaves that out, which is
+--     every board without a sound board. Not meant to be combined with Check_CRC.
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -64,7 +70,15 @@ use IEEE.numeric_std.all;
 			-- Read on to the end of the slot, take the last two bytes as the expected
 			-- CRC16-CCITT over the first CRC_Bytes bytes and compare. Error code 7.
 			Check_CRC : boolean := false;
-			CRC_Bytes : integer := 32768
+			CRC_Bytes : integer := 32768;
+
+			-- Second read for the sound board ROMs, see v13. 0 = no second read.
+			-- Card layout since x.30: the 32 MPU slots of 24 sectors from sector 660,
+			-- behind them (from 660 + 32 * 24 = 1428) 32 sound slots of 40 sectors.
+			Sound_Bytes        : integer := 0;
+			Sound_Sector       : integer := 1428;
+			Sound_Slot_Sectors : integer := 40;
+			Sound_Offset       : integer := 12288  -- where the sound ROMs start in address_sd_card
 		);
 		port(
 		i_Clk		: IN STD_LOGIC  := '1';
@@ -163,6 +177,9 @@ use IEEE.numeric_std.all;
 		signal wd_count        : integer range 0 to 100000000; -- general watchdog (~2 s headroom @ 50 MHz)
 		signal err_code        : integer range 0 to 15;
 		signal blink_remaining : integer range 0 to 15;
+
+		-- '1' while the second read (sound board ROMs, Sound_Bytes > 0) is running
+		signal pass2 : std_logic;
 	begin
 		
 		-- signals for the two SPI Master
@@ -290,6 +307,7 @@ o_no_card <= '1' when state_A = error and err_code >= 1 and err_code <= 4 else '
 				Echo_response <= x"00";
 				read_checksum <= (others => '0');
 				crc_error <= '0';
+				pass2 <= '0';
 				state_A <= Startdelay;
 			else			
 				case state_A is
@@ -318,7 +336,12 @@ o_no_card <= '1' when state_A = error and err_code >= 1 and err_code <= 4 else '
 									 -- where to read rom depending on dip switch
 									 -- first rom starts at sector 660
 									 -- per game: Slot_Sectors sectors (24 = 12 KB standard, 128 = 64 KB WillFA7S)
-									 TX_Data_A(79 downto 64)  <= std_logic_vector (unsigned(selection) * Slot_Sectors + 660);
+									 if pass2 = '1' then
+										 -- second read: the sound board ROMs, see v13
+										 TX_Data_A(79 downto 64)  <= std_logic_vector (unsigned(selection) * Sound_Slot_Sectors + Sound_Sector);
+									 else
+										 TX_Data_A(79 downto 64)  <= std_logic_vector (unsigned(selection) * Slot_Sectors + 660);
+									 end if;
 						when 8 => TX_Data_A <= x"FF" & CMD12 & x"FFFFFFFFFFFFFF";	
 									 do_not_disable_SS <= '0';	
 						when others => TX_Data_A <= x"FF" & x"FFFFFFFFFFFF" & x"FFFFFFFFFFFFFF"; --  read
@@ -434,13 +457,25 @@ o_no_card <= '1' when state_A = error and err_code >= 1 and err_code <= 4 else '
 										cmd_count <= 0;
 										TX_Data_R <= x"FF";
 										active_master <= "10";
-										address_sd_card <= (others => '0');
+										if pass2 = '1' then
+											address_sd_card <= std_logic_vector(to_unsigned(Sound_Offset, address_sd_card'length));
+										else
+											address_sd_card <= (others => '0');
+										end if;
 										byte_count <= 0;
 										wd_count <= 0; -- arm sector-token watchdog (~500 ms)
 										state_A <= initiate_read_sector;
 									when 8 => -- we send CMD12 to stop read sector, all done
 										wr_rom <= '0';
-										if Check_CRC then
+										if Sound_Bytes > 0 and pass2 = '0' then
+											-- MPU ROMs done, now the sound board ROMs: CMD18 again.
+											-- 100 ms pause first: CMD12 has an R1b response and the
+											-- card may still signal busy, which would swallow the CMD18.
+											pass2 <= '1';
+											cmd_count <= 7;
+											counter <= 0;
+											state_A <= delay_and_repeat;
+										elsif Check_CRC then
 											state_A <= verify_crc;
 										else
 											state_A <= all_done;
@@ -560,8 +595,10 @@ o_no_card <= '1' when state_A = error and err_code >= 1 and err_code <= 4 else '
 										state_A <= sector_read;		-- next byte
 									end if;
 								else
-									-- finished? (last written address = Read_Bytes - 1)
-									if unsigned(address_sd_card) = to_unsigned(Read_Bytes - 1, address_sd_card'length) then
+									-- finished? (last written address = Read_Bytes - 1, or the end of
+									-- the sound block in the second read)
+									if ( pass2 = '0' and unsigned(address_sd_card) = to_unsigned(Read_Bytes - 1, address_sd_card'length) )
+									or ( pass2 = '1' and unsigned(address_sd_card) = to_unsigned(Sound_Offset + Sound_Bytes - 1, address_sd_card'length) ) then
 											state_A <= stop_read;		--just read last byte
 									else
 											state_A <= sector_read;		-- next byte

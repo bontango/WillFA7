@@ -17,11 +17,14 @@
 --        VIRTUAL_PIN does not work on Quartus 13.0sp1 Web Edition - four pins of
 --        the EP2C5 that 1.21 drove are free again. Plus the boot message on six AND
 --        seven digit player displays (docs/display_layout.md) and the is_sys3 fix
+-- x.30   back to the x.20 SD card (12 KByte slots, no CRC) for every board, Cyclone II
+--        included; the sound board ROMs in a second area of the card. Game ROMs from
+--        the configuration flash when no card answers (HAS_FLASH_ROM, WillFA7S so far)
 --
 library ieee;
 use ieee.std_logic_1164.all;
 
 package version_pkg is
-	constant SW_SUB1 : std_logic_vector(3 downto 0) := x"2";
-	constant SW_SUB2 : std_logic_vector(3 downto 0) := x"2";
+	constant SW_SUB1 : std_logic_vector(3 downto 0) := x"3";
+	constant SW_SUB2 : std_logic_vector(3 downto 0) := x"0";
 end package;

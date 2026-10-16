@@ -248,3 +248,23 @@
 --        WildTexas, the way the manuals and the switch matrix documentation have always
 --        described it. Cards are written with 'make_sd.bat'. Defender and Star Light need
 --        the full 12 KByte of game rom and therefore still do not run on Cyclone II.
+--
+-- vx.30 10.2026 back to the x.20 SD card for EVERY board, and game roms from the flash.
+--        1) SD card: the 64 KByte slots with CRC16 of .22 are gone. Every board reads the
+--           x.20 Cyclone IV card again - 12 KByte per game, 24 sectors from sector 660,
+--           no checksum. Cyclone II included: it reads the same card and drops the first
+--           2K window, so the old 10 KByte Cyclone II card is gone instead. An x.20
+--           Cyclone IV card runs unchanged on every board without a sound board.
+--           *** A .22 CARD DOES NOT RUN ON x.30. *** Write the image of make_sd.bat
+--           (image version 4); the .22 script is kept as 'make_sd - v22.bat'.
+--        2) WillFA7S: the sound board roms are a second area of the card, 20 KByte per
+--           game from sector 1428 (= 660 + 32 * 24). SD_Card.vhd v13 reads it in a second
+--           pass after a 100 ms pause. Boards without a sound board never read it.
+--        3) WillFA7S only, as a hardware test: game roms from the EPCS16 configuration
+--           flash when no SD card answers (SD_Card errors 1..4), rtl/common/Flash_ROM.vhd,
+--           HAS_FLASH_ROM. Game n at 080000h + n * 8000h, MPU and sound roms together.
+--           The flash .jic with roms is built locally (scripts/make_flash_hex.ps1 plus
+--           willfa7_roms.cof) and is never part of a release. An empty flash slot gives
+--           error 8 instead of running FF.
+--        Boot display: player 3/4 show the build date again instead of two checksums.
+--        Error code 7 (CRC mismatch) does not occur any more.

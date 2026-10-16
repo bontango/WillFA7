@@ -23,5 +23,5 @@
                     # line instead.
                     'DIP_Str_1', 'DIP_Str_2', 'DIP_Str_3', 'DIP_Str_4')
 
-    Notes       = 'EP4CE10 for the memory, not the logic: five 4 KByte sound ROMs are 163,840 bits on top. Needs a 64 KByte per game SD image with a CRC16 - a standard card does not boot here, and this card does not boot on a standard board.'
+    Notes       = 'EP4CE10 for the memory, not the logic: five 4 KByte sound ROMs are 163,840 bits on top. Since x.30 the same SD card as every board (12 KByte per game from sector 660, no CRC) plus a sound area from sector 1428 that only this board reads. Also the test board for HAS_FLASH_ROM.'
 }

@@ -116,9 +116,9 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | `BOARD_ID` | erste Stelle der Versionsanzeige |
 | `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. 5 heisst: kein rom0, Fenster 0 des Images wird gelesen und verworfen, 5000h–57FF liest FF, Defender und Star Light laufen nicht. **Seit `.22` kein Kartenformat mehr** – das ist für alle gleich. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
-| `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was die Bytes 12K–32K des Slots dekodiert. **`docs/soundcard_variant.md`** |
+| `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was den Soundbereich der Karte liest (zweiter Lesedurchgang von `SD_Card`). **`docs/soundcard_variant.md`** |
 | `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Nur `s_cyclone_iv_v4`, als Hardwaretest**; die anderen folgen, wenn er dort bestanden ist. Abschnitt „Konfigurationsflash" unten. |
-| `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. Überall `true`; `false` spart auf Cyclone II ca. 90 LE, liest dieselbe Karte, merkt aber nichts von einer defekten und zeigt statt der beiden Summen weiter das Build-Datum. |
+| `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. **Seit x.30 überall `false`** – die Karte trägt keine CRC mehr (x.20-Format). Die Logik ist in `SD_Card` geblieben, passt aber nicht zum Soundbereich. |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
 `VirtualPins`, `BinFolder`, `ReleaseArtifact`, `Dormant`, `TopEntity`.
@@ -172,7 +172,7 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 |---|---|---|
 | cpu68 | `rtl/common/cpu68.vhd` | Motorola 6800/6801 (OpenCores, John E. Kent, GPL), v0.85 |
 | pia6821 | `rtl/common/pia6821.vhd` | PIA, 5 Instanzen |
-| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes`. Seit `.22` steht auf allen Varianten dasselbe drin: 128 Sektoren je Spiel, CRC über die ersten 32 KByte |
+| SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes`, dazu seit x.30 `Sound_*` für den zweiten Lesedurchgang (nur `HAS_SOUND`). Überall 24 Sektoren je Spiel, keine CRC |
 | Flash_ROM | `rtl/common/Flash_ROM.vhd` | liest die Spiel-ROMs aus dem EPCS16, wenn `SD_Card` „keine Karte" meldet (`o_no_card`, Fehler 1–4). Nur `HAS_FLASH_ROM` |
 | crc16_ccitt | `rtl/sound/crc16_ccitt.vhd` | LFSR für die Kartenprüfsumme. Liegt aus historischen Gründen unter `rtl/sound/`, gehört seit `.22` aber zu jedem Build |
 | EEprom | `rtl/common/EEprom.vhd` | SPI-EEPROM (M95256 / M95512), Spielstand |
@@ -274,35 +274,31 @@ auf `'0'` gehalten.
 **Ein neuer Port an `boot_message` trifft immer zwei Instanzen** – die Bootmeldung im
 Top-Level und die des Soundtests in `rtl/sound/soundtest.vhd`.
 
-## SD-Karte: ein Format für alle (seit `.22`)
+## SD-Karte: ein Format für alle (seit x.30, Image-Version 4)
 
-Bis `.21` gab es drei Formate – 10 KByte ab 5800h (Cyclone II), 12 KByte ab 5000h (alle
-anderen) und 64 KByte mit CRC (WillFA7S). Seit `.22` gilt überall das dritte:
+`.22` hatte 64-KByte-Slots mit CRC16 für alle. **Seit x.30 gilt wieder die x.20-Karte der
+Cyclone IV – für jedes Board, Cyclone II eingeschlossen –, dahinter ein Soundbereich, keine CRC:**
 
 ```
-Slot je Spiel      128 Sektoren = 64 KByte, Spiel 0 ab Sektor 660
-                   -> Startsektor = 660 + Spielnummer * 128
-0x0000 - 0x2FFF    12 KByte   MPU-ROMs, 6 x 2K -> 5000h..7FFFh
-0x3000 - 0x7FFF    20 KByte   Soundkarten-ROMs, 5 x 4K (nur HAS_SOUND dekodiert sie)
-0x8000 - 0xFFFD               frei
-0xFFFE - 0xFFFF     2 Byte    erwartete CRC16-CCITT ueber die ersten 32 KByte
+Sektor 660 + n*24     Spiel n, 12 KByte MPU-ROMs, 6 x 2K -> 5000h..7FFFh
+Sektor 1428 + n*40    Spiel n, 20 KByte Soundkarten-ROMs, 5 x 4K -> address_sd_card 3000h..7FFFh
+                      (1428 = 660 + 32*24; nur HAS_SOUND liest das, zweiter CMD18)
 ```
 
-- **Die sechs 2K-Fenster sind auf jeder Variante dieselben.** Ein Board mit `ROM_COUNT = 5`
-  verschiebt nichts, es lässt Fenster 0 einfach liegen. Genau das war vorher anders, und es
-  ist der Grund, warum eine `.21`-Cyclone-II-Karte unter `.22` nicht mehr läuft.
-- **Gelesen wird immer der ganze Slot**, weil die erwartete Prüfsumme in den letzten beiden
-  Bytes steht. Das kostet rund **1 Sekunde mehr Bootzeit** (64 KByte statt 12 bei 400 kHz).
-  Nur mit `SD_CHECK_CRC = false` endet der Lauf nach `Read_Bytes`.
-- **Die gerechnete Summe steht auf `display3`, die gelesene auf `display4`.** Stimmen sie
-  nicht überein: Fehlerziffer `7` vorn auf `error_disp4`, Blinkcode 7 auf `LED_SD_Error`,
-  und die CPU wird **nicht** freigegeben.
-- Eine alte Karte meldet sich damit als CRC-Fehler statt stumm ein falsches Spiel zu laden.
-  Das ist die gewollte Diagnose, kein Defekt.
+- **Eine x.20-Cyclone-IV-Karte (Image-Version 2.1) läuft damit unverändert auf jedem Board
+  ohne Soundkarte.** Unterschied zur neuen Karte nur Slot 31 (WildTexas statt Star Light) und
+  der fehlende Soundbereich.
+- **Cyclone II** (`ROM_COUNT = 5`) liest dieselben sechs 2K-Fenster und lässt Fenster 0 liegen,
+  wie schon seit `.22`. Das alte 10-KByte-Image der Cyclone II läuft nicht mehr.
+- Zwischen den beiden Lesedurchgängen der WillFA7S liegen 100 ms Pause: CMD12 hat eine
+  R1b-Antwort, die Karte kann noch busy sein und würde das zweite CMD18 verschlucken.
+- **Keine Prüfsumme.** `display3`/`display4` zeigen wieder das Build-Datum. Eine `.22`-Karte
+  bootet nicht – sie liefert auf den Sektoren der x.30-Slots Teile der 64-KByte-Slots.
 
 Karten erzeugt `N:\Projekte\WillFA7\SD image WillFA7 (roms)\make_sd.bat` (ausserhalb des
-Repos). Slot 30 ist Defender, Slot 31 Star Light – beide brauchen die vollen 12 KByte und
-laufen deshalb nicht auf Cyclone II.
+Repos): erst 32 Spieldateien zu 12 KByte, dann 32 Sounddateien zu 20 KByte, Reihenfolge ist die
+Spielnummer. Die `.22`-Fassung liegt daneben als `make_sd - v22.bat`. Slot 30 ist Defender,
+Slot 31 Star Light – beide brauchen die vollen 12 KByte und laufen deshalb nicht auf Cyclone II.
 
 ## Konfigurationsflash als zweite ROM-Quelle (`HAS_FLASH_ROM`, seit 16.10.2026)
 
@@ -314,8 +310,9 @@ braucht `SD_Card`, um aufzugeben (500 ms Anlauf, 8 × CMD0).
 
 ```
 EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) + Reserve
-         0x080000 + n*0x8000   Spiel n, die ersten 32 KByte seines SD-Slots 1:1
-                               -> Spiel 0..31 bis 0x17FFFF
+         0x080000 + n*0x8000   Spiel n, 32 KByte: 12 KByte MPU-ROMs, dann 20 KByte
+                               Soundkarten-ROMs (auf der Karte zwei Bereiche, hier
+                               zusammen) -> Spiel 0..31 bis 0x17FFFF
 ```
 
 - **Keine CRC im Flash.** Kein Steckkontakt, kein Dateisystem, und der Programmer prüft beim
@@ -326,7 +323,8 @@ EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) +
   Prüfsummen das Build-Datum.
 - **Die Release-`.jic` bleibt ROM-frei** (Urheberrecht). Wer ROMs im Flash will, baut lokal:
   `scripts\make_flash_hex.ps1 -Image <Kartenimage> -Out variants\<name>\output_files\willfa7_roms.hex`
-  (oder `-SlotFiles` mit den 64-KByte-Dateien von `make_sd.bat`), dann im Variantenordner
+  (oder `-SlotFiles`/`-SoundFiles` mit den 12-/20-KByte-Dateien von `make_sd.bat`; für eine
+  x.20-Karte ohne Soundbereich `-NoSound`), dann im Variantenordner
   `quartus_cpf -c willfa7_roms.cof` → `output_files\willfa7_roms.jic`. Beides liegt unter
   `output_files\`, das git ignoriert. **Nie nach `bin/`.**
 - **Pins:** die vier Konfigurationspins (E22: DCLK 12, DATA0 13, nCSO 8, ASDO 6) als

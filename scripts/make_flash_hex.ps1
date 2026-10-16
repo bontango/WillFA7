@@ -4,29 +4,39 @@
   (HAS_FLASH_ROM, rtl/common/Flash_ROM.vhd).
 
 .DESCRIPTION
-  The SD card stays the one source of the game data. This script takes the slots of a
-  card in the .22 format - either an image of the whole card or the 64 KByte slot files
-  that make_sd.bat writes - and lays out the first 32 KByte of each slot in the flash:
+  The SD card stays the one source of the game data. This script takes it in the x.30
+  layout (image version 4, written by make_sd.bat) - either an image of the whole card
+  or the files that make_sd.bat writes - and lays it out in the flash:
 
-      game n at 080000h + n * 8000h      (game 0..31 -> 080000h..17FFFFh)
+      card    sector 660 + n * 24     game n, 12 KByte MPU ROMs
+              sector 1428 + n * 40    game n, 20 KByte sound board ROMs
+      flash   080000h + n * 8000h     game n, MPU ROMs, then sound board ROMs (32 KByte)
 
-  The CRC16-CCITT in the last two bytes of each slot is checked once here and reported;
-  it does not go into the flash, Flash_ROM.vhd does not read one.
+  An x.20 Cyclone IV card (image version 2.1) has the MPU part only; with that the
+  sound half of each flash slot stays FF, which is fine for every board without a
+  sound board. Use -NoSound for such a card, otherwise whatever lies behind slot 31
+  is taken for sound data.
 
-  Slots that are completely FF or 00 are left out, so that part of the flash stays
-  erased - Flash_ROM.vhd then reports error 8 for that game instead of running it.
+  Games whose MPU part is completely FF or 00 are left out, so that part of the flash
+  stays erased - Flash_ROM.vhd then reports error 8 for that game instead of running it.
 
   THE RESULT CONTAINS COPYRIGHTED GAME ROMS. Write it below output_files\ (ignored by
   git) and never into bin\. variants\<name>\willfa7_roms.cof expects it at
   output_files\willfa7_roms.hex.
 
 .PARAMETER Image
-  Image of a WillFA7 SD card in the .22 format (raw sectors, game 0 at sector 660,
-  128 sectors per game). Read for as many games as it holds, at most -Games.
+  Image of a WillFA7 SD card (raw sectors). Read for as many games as it holds, at
+  most -Games.
 
 .PARAMETER SlotFiles
-  The 64 KByte slot files in game order, game 0 first, as add_crc16_move produces
-  them. Instead of -Image.
+  The 12 KByte MPU files in game order, game 0 first, as make_sd.bat writes them.
+  Instead of -Image.
+
+.PARAMETER SoundFiles
+  With -SlotFiles: the 20 KByte sound files in the same order. Optional.
+
+.PARAMETER NoSound
+  With -Image: read the MPU part only (x.20 card, or a board without sound board).
 
 .PARAMETER Out
   The .hex file to write.
@@ -36,24 +46,27 @@
   DIP selection cover.
 
 .EXAMPLE
-  .\make_flash_hex.ps1 -Image D:\willfa7_card.img -Out ..\variants\s_cyclone_iv_v4\output_files\willfa7_roms.hex
+  .\make_flash_hex.ps1 -Image D:\willfa7_card.img -Out ..ariants\s_cyclone_iv_v4\output_files\willfa7_roms.hex
 #>
 param(
     [string]$Image,
     [string[]]$SlotFiles,
+    [string[]]$SoundFiles,
+    [switch]$NoSound,
     [Parameter(Mandatory = $true)][string]$Out,
     [int]$Games = 32
 )
 
 $ErrorActionPreference = 'Stop'
 
-# card layout, see FPGA_source\CLAUDE.md section 'SD-Karte'
-$SlotBytes   = 65536
-$FirstSector = 660
-$PayloadBytes = 32768
+# card layout, see top/WillFA7.vhd (SD_SLOT_SECTORS, SD_SOUND_SECTOR) and SD_Card.vhd v13
+$FirstSector  = 660
+$MpuBytes     = 12288     # 24 sectors
+$SoundSector  = 1428      # 660 + 32 * 24
+$SoundBytes   = 20480     # 40 sectors
 # flash layout, see rtl/common/Flash_ROM.vhd
-$FlashBase   = 0x080000
-$FlashSlot   = 0x8000
+$FlashBase    = 0x080000
+$FlashSlot    = 0x8000
 
 if ((-not $Image) -and (-not $SlotFiles)) { throw 'Give -Image or -SlotFiles.' }
 if ($Image -and $SlotFiles) { throw 'Give -Image or -SlotFiles, not both.' }
@@ -63,17 +76,6 @@ using System;
 using System.IO;
 using System.Text;
 public static class WillFAFlash {
-    // CRC-16/CCITT-FALSE: poly 1021h, init FFFFh, MSB first - the same LFSR as
-    // rtl/sound/crc16_ccitt.vhd and add_crc16_move.exe.
-    public static ushort Crc(byte[] d, int off, int len) {
-        ushort crc = 0xFFFF;
-        for (int i = 0; i < len; i++) {
-            crc ^= (ushort)(d[off + i] << 8);
-            for (int b = 0; b < 8; b++)
-                crc = (ushort)(((crc & 0x8000) != 0) ? ((crc << 1) ^ 0x1021) : (crc << 1));
-        }
-        return crc;
-    }
     public static bool Blank(byte[] d, int off, int len) {
         byte f = d[off];
         if (f != 0xFF && f != 0x00) return false;
@@ -102,26 +104,44 @@ public static class WillFAFlash {
 }
 '@
 
-# collect the slots as byte arrays
+# collect each game as one 32 KByte flash slot: MPU part, then sound part (FF if none)
+function New-Slot {
+    $s = New-Object byte[] ($MpuBytes + $SoundBytes)
+    for ($i = 0; $i -lt $s.Length; $i++) { $s[$i] = 0xFF }
+    return ,$s
+}
 $slots = New-Object System.Collections.Generic.List[byte[]]
+$soundCount = 0
 if ($Image) {
     $img = [System.IO.File]::ReadAllBytes((Resolve-Path $Image))
     for ($n = 0; $n -lt $Games; $n++) {
-        $off = ($FirstSector * 512) + ($n * $SlotBytes)
-        if ($off + $SlotBytes -gt $img.Length) { break }
-        $s = New-Object byte[] $SlotBytes
-        [Array]::Copy($img, $off, $s, 0, $SlotBytes)
+        $off = ($FirstSector * 512) + ($n * $MpuBytes)
+        if ($off + $MpuBytes -gt $img.Length) { break }
+        $s = New-Slot
+        [Array]::Copy($img, $off, $s, 0, $MpuBytes)
+        $soff = ($SoundSector * 512) + ($n * $SoundBytes)
+        if ((-not $NoSound) -and ($soff + $SoundBytes -le $img.Length)) {
+            [Array]::Copy($img, $soff, $s, $MpuBytes, $SoundBytes)
+            $soundCount++
+        }
         $slots.Add($s)
     }
 } else {
-    foreach ($f in $SlotFiles) {
-        if ($slots.Count -ge $Games) { break }
-        $s = [System.IO.File]::ReadAllBytes((Resolve-Path $f))
-        if ($s.Length -ne $SlotBytes) { throw "$f is $($s.Length) bytes, a slot is $SlotBytes." }
+    for ($n = 0; $n -lt $SlotFiles.Count -and $n -lt $Games; $n++) {
+        $m = [System.IO.File]::ReadAllBytes((Resolve-Path $SlotFiles[$n]))
+        if ($m.Length -ne $MpuBytes) { throw "$($SlotFiles[$n]) is $($m.Length) bytes, an MPU part is $MpuBytes." }
+        $s = New-Slot
+        [Array]::Copy($m, 0, $s, 0, $MpuBytes)
+        if ($SoundFiles -and $n -lt $SoundFiles.Count) {
+            $snd = [System.IO.File]::ReadAllBytes((Resolve-Path $SoundFiles[$n]))
+            if ($snd.Length -ne $SoundBytes) { throw "$($SoundFiles[$n]) is $($snd.Length) bytes, a sound part is $SoundBytes." }
+            [Array]::Copy($snd, 0, $s, $MpuBytes, $SoundBytes)
+            $soundCount++
+        }
         $slots.Add($s)
     }
 }
-if ($slots.Count -eq 0) { throw 'No slot found.' }
+if ($slots.Count -eq 0) { throw 'No game found.' }
 
 $sb = New-Object System.Text.StringBuilder
 $written = 0
@@ -129,25 +149,21 @@ $warn = 0
 for ($n = 0; $n -lt $slots.Count; $n++) {
     $s = $slots[$n]
     $addr = $FlashBase + $n * $FlashSlot
-    if ([WillFAFlash]::Blank($s, 0, $PayloadBytes)) {
+    if ([WillFAFlash]::Blank($s, 0, $MpuBytes)) {
         Write-Host ('game {0,2}: empty, left out' -f $n) -ForegroundColor DarkGray
         continue
     }
-    $calc = [WillFAFlash]::Crc($s, 0, $PayloadBytes)
-    $read = ([int]$s[$SlotBytes - 2] -shl 8) -bor $s[$SlotBytes - 1]
     # reset vector of the MPU, slot offset 2FFEh = 7FFEh, which Flash_ROM.vhd checks
     $vec = ([int]$s[0x2FFE] -shl 8) -bor $s[0x2FFF]
-    $line = 'game {0,2}: {1:X6}  crc {2:X4}  vector {3:X4}' -f $n, $addr, $calc, $vec
-    if ($calc -ne $read) {
-        Write-Host ('{0}  CRC MISMATCH, card says {1:X4}' -f $line, $read) -ForegroundColor Yellow
-        $warn++
-    } elseif ($vec -eq 0xFFFF) {
-        Write-Host ('{0}  vector FFFF - Flash_ROM will report error 8' -f $line) -ForegroundColor Yellow
+    $snd = if ([WillFAFlash]::Blank($s, $MpuBytes, $SoundBytes)) { 'no sound' } else { 'sound' }
+    $line = 'game {0,2}: {1:X6}  vector {2:X4}  {3}' -f $n, $addr, $vec, $snd
+    if ($vec -eq 0xFFFF) {
+        Write-Host ('{0}  - Flash_ROM will report error 8' -f $line) -ForegroundColor Yellow
         $warn++
     } else {
         Write-Host $line
     }
-    [WillFAFlash]::Data($sb, $addr, $s, 0, $PayloadBytes)
+    [WillFAFlash]::Data($sb, $addr, $s, 0, $s.Length)
     $written++
 }
 [WillFAFlash]::End($sb)

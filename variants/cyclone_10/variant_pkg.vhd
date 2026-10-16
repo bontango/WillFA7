@@ -23,10 +23,9 @@ package variant_pkg is
 	-- decoder, the sound test and a 4x4 DIP matrix. See docs/soundcard_variant.md.
 	constant HAS_SOUND : boolean := false;
 
-	-- Check the CRC16-CCITT the card carries in the last two bytes of the 64 KByte
-	-- slot. One card format for every board since .22 - docs/soundcard_variant.md.
-	-- The only reason to turn this off is logic elements, which is a Cyclone II topic.
-	constant SD_CHECK_CRC : boolean := true;
+	-- CRC16-CCITT check of the SD card. Off on every board since x.30: the card is the
+	-- x.20 one again (12 KByte slots, no CRC). The logic stays in SD_Card.vhd.
+	constant SD_CHECK_CRC : boolean := false;
 
 	-- Game ROMs from the configuration flash when no SD card answers
 	-- (rtl/common/Flash_ROM.vhd). Only on WillFA7S so far, as a hardware test;
