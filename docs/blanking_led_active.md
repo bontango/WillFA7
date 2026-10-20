@@ -39,6 +39,35 @@ und „status". Nur `LED_SD_Error` ist eine LED ohne Nebenfunktion.
 Quelle: `N:\Projekte\WillFA7\doc\bugsv5.txt` ("Blanking ohne Treiber -> active LED!",
 "Blanking fuer displays? -> LED"), `N:\Projekte\WillFA7\doc\Blanking_wire_v05_new.png`.
 
+## Unterschiede zwischen den Platinenversionen (Cyclone II, Hardware v0.5 / 1.0.22 / 1.3.0)
+
+Aus den Netzlisten in `N:\Projekte\WillFA7\target\` (v05, v1.1, v1.3). Die Bauteilnummern in
+diesem Abschnitt sind die der Cyclone-II-Platine; X1-n ist der Pin n der Devboard-Steckleiste,
+nicht der FPGA-Pin. Vollstaendiger Portvergleich:
+`N:\Projekte\WillFA7\target\Vergleich_v05_v1.0_22_v1.3_00_Portzuweisung.md`.
+
+| | v0.5 | 1.0.22 | 1.3.0 |
+|---|---|---|---|
+| `LED_active` (X1-5) treibt | nur LED D2 – **`Blanking` hat keinen Treiber**, nur Pull-up R28 | LED D2, `Blanking` | = 1.0.22 |
+| `Blanking` treibt | IC13 /OE, IC5 /OE (Display-Daten), IC14 /OE (Sound/Komma), ueber T9 `Blanking_N` | IC13 /OE, ueber T9 `Blanking_N` | = 1.0.22 |
+| `Blanking_N` → | /RESET IC2, IC3, IC4, IC6, IC7, K4-11, **1J3-4** | /RESET IC2, IC3, IC4, IC6, IC7, **IC14**, K4-11 | = 1.0.22 |
+| `LED_status` (X1-7) treibt | nur LED D3 | LED D3, IC5 /OE (`Disp_Blank`), ueber T10 → 1J3-4 | LED D3, IC5 /OE |
+| 1J3-4 (Display-Blanking) | `Blanking_N` | `Disp_Blank_N` (T10, Pull-up R40 4,7K) | fest High, R40 820 Ω nach +5V |
+
+* **v0.5** ist ohne Drahtbruecke funktionslos: `Blanking` steht ueber R28 dauernd auf High,
+  Switch-Strobes aus, alle Latches im Reset. Die Bruecke von X1-5 auf IC13 Pin 1
+  (`Blanking_wire_v05_new.png`) macht `LED_active` zur Blanking-Leitung. Das Display haengt bei
+  v0.5 am selben Blanking, `LED_status` ist dort eine reine LED.
+* **Ab 1.0** hat das Display mit `LED_status` ein eigenes Blanking. Seitdem gilt die Aufteilung
+  oben: `LED_active` = Spulen, Lampen, Sound/Komma, Switch-Matrix; `LED_status` = Display.
+* **1.3** treibt 1J3-4 nicht mehr, T10 ist entfallen. Das Display wird in Bootphase 0 nur noch
+  ueber den abgeschalteten Datenpuffer IC5 dunkel gehalten. Das ist gewollt – dieselbe Korrektur
+  zeigt `N:\Projekte\WillFA7\doc\Disp_blanking_v103.png` als Umbau fuer 1.03 (T10 raus, 1J3-4
+  ueber 1K an +5V). Umgebaute 1.0x-Platinen verhalten sich also wie 1.3.
+* Fuer die Firmware aendert sich zwischen 1.0.22 und 1.3 nichts. v0.5 laeuft mit der aktuellen
+  Firmware ohnehin nicht (anderer Lampenbus, Sound/Komma direkt statt ueber IC14, Switch-Strobes
+  nicht invertiert).
+
 ## Wer treibt `blanking`
 
 `COUNT_STROBES` (`entity count_to_zero`, `WillFA7.vhd`) zaehlt steigende Flanken von
