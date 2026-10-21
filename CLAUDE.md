@@ -66,12 +66,12 @@ archive/         historische Modulstaende, in keinem Build
 
 | `variants/<name>` | Version | FPGA | Quartus | Stand |
 |---|---|---|---|---|
-| `cyclone_ii` | 1.22 | EP2C5T144C8 | **13.0sp1** | aktiv, 96 % LE, baut über `WillFA7_cii` |
-| `cyclone_iv_v3` | 2.22 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
-| `cyclone_iv_v4` | 3.22 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
-| `cyclone_10` | 4.22 | 10CL006YE144C8G | 22.1std | aktiv |
-| `cyclone_iv_dev_open` | 5.22 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
-| `s_cyclone_iv_v4` | 6.22 | EP4CE10E22C8 | 22.1std | aktiv, **mit Soundkarte** – `docs/soundcard_variant.md` |
+| `cyclone_ii` | 1.30 | EP2C5T144C8 | **13.0sp1** | aktiv, 93 % LE, baut über `WillFA7_cii` |
+| `cyclone_iv_v3` | 2.30 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
+| `cyclone_iv_v4` | 3.30 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
+| `cyclone_10` | 4.30 | 10CL006YE144C8G | 22.1std | aktiv |
+| `cyclone_iv_dev_open` | 5.30 | EP4CE6E22C8 | 22.1std | aktiv, Aliexpress-Devboard |
+| `s_cyclone_iv_v4` | 6.30 | EP4CE10E22C8 | 22.1std | aktiv, **mit Soundkarte** – `docs/soundcard_variant.md` |
 
 Angezeigte Version = `BOARD_ID.SW_SUB1 SW_SUB2`. Erste Stelle aus
 `variants/<name>/variant_pkg.vhd`, die beiden anderen aus `rtl/common/version_pkg.vhd`.
@@ -117,7 +117,7 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. 5 heisst: kein rom0, Fenster 0 des Images wird gelesen und verworfen, 5000h–57FF liest FF, Defender und Star Light laufen nicht. **Seit `.22` kein Kartenformat mehr** – das ist für alle gleich. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
 | `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was den Soundbereich der Karte liest (zweiter Lesedurchgang von `SD_Card`). **`docs/soundcard_variant.md`** |
-| `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Nur `s_cyclone_iv_v4`, als Hardwaretest**; die anderen folgen, wenn er dort bestanden ist. Abschnitt „Konfigurationsflash" unten. |
+| `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Seit x.30 auf allen Varianten außer `cyclone_ii`** (EPCS4, kein Platz); in Hardware noch auf keinem Board getestet. Abschnitt „Konfigurationsflash" unten. |
 | `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. **Seit x.30 überall `false`** – die Karte trägt keine CRC mehr (x.20-Format). Die Logik ist in `SD_Card` geblieben, passt aber nicht zum Soundbereich. |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
@@ -326,12 +326,14 @@ EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) +
   (oder `-SlotFiles`/`-SoundFiles` mit den 12-/20-KByte-Dateien von `make_sd.bat`; für eine
   x.20-Karte ohne Soundbereich `-NoSound`), dann im Variantenordner
   `quartus_cpf -c willfa7_roms.cof` → `output_files\willfa7_roms.jic`. Beides liegt unter
-  `output_files\`, das git ignoriert. **Nie nach `bin/`.**
-- **Pins:** die vier Konfigurationspins (E22: DCLK 12, DATA0 13, nCSO 8, ASDO 6) als
+  `output_files\`, das git ignoriert. Als `bin/<Ordner>/willfa7_v<nnn>_roms.jic` darf die
+  Datei für den lokalen Gebrauch neben dem Release liegen – `*_roms.jic` ist in `.gitignore`,
+  geht also nie zu GitHub. Eine Hex reicht für alle Boards ohne Soundkarte (`-NoSound`).
+- **Pins:** die vier Konfigurationspins (E22/E144: DCLK 12, DATA0 13, nCSO 8, ASDO 6;
+  F17 der `cyclone_iv_v3`: DCLK H1, DATA0 H2, nCSO D2, ASDO C1) als
   `FLASH_DCLK`, `FLASH_DATA0`, `FLASH_NCS`, `FLASH_ASDO` in `pins.tcl`; `device.tcl` gibt
-  DATA0, DATA1/ASDO, FLASH_NCE und DCLK nach der Konfiguration als normale I/O frei. Varianten
-  ohne `HAS_FLASH_ROM` führen die Ports als `VIRTUAL_PIN`, Cyclone II lässt sie in der Hülle
-  offen (EPCS4, kein Platz).
+  DATA0, DATA1/ASDO, FLASH_NCE und DCLK nach der Konfiguration als normale I/O frei.
+  Cyclone II hat kein `HAS_FLASH_ROM` und lässt die Ports in der Hülle offen (EPCS4, kein Platz).
 
 ## LED-Ausgänge mit Doppelfunktion
 

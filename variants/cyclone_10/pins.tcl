@@ -83,3 +83,11 @@ set_location_assignment PIN_80 -to W_PA_DIP[1]
 set_location_assignment PIN_83 -to W_PA_DIP[2]
 set_location_assignment PIN_86 -to W_PA_DIP[3]
 set_location_assignment PIN_84 -to solenoids[5]
+
+# Configuration flash EPCS16 (HAS_FLASH_ROM). The dedicated configuration pins of the
+# E144 package, checked against the pin report of x.30 (~ALTERA_DCLK~ 12, ~ALTERA_DATA0~ 13,
+# ~ALTERA_FLASH_nCE_nCSO~ 8, ~ALTERA_ASDO_DATA1~ 6). Released as regular I/O in device.tcl.
+set_location_assignment PIN_12 -to FLASH_DCLK
+set_location_assignment PIN_8 -to FLASH_NCS
+set_location_assignment PIN_6 -to FLASH_ASDO
+set_location_assignment PIN_13 -to FLASH_DATA0

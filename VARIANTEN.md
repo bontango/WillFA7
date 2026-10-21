@@ -10,12 +10,15 @@ Soundkarten-Variante.** Alle sechs Varianten bauen aus **einem** `top/WillFA7.vh
 
 | `variants/<name>` | Version | FPGA | Familie | Sound | Status |
 |---|---|---|---|---|---|
-| `cyclone_ii` | **1.22** | EP2C5T144C8 | Cyclone II | – | aktiv, über `WillFA7_cii` |
-| `cyclone_iv_v3` | **2.22** | EP4CE6F17C8 | Cyclone IV E | – | aktiv, mit USB-Monitor-API |
-| `cyclone_iv_v4` | **3.22** | EP4CE6E22C8 | Cyclone IV E | – | aktiv ← **Leitvariante** |
-| `cyclone_10` | **4.22** | 10CL006YE144C8G | Cyclone 10 LP | – | aktiv |
-| `cyclone_iv_dev_open` | **5.22** | EP4CE6E22C8 | Cyclone IV E | – | aktiv, Aliexpress-Devboard |
-| `s_cyclone_iv_v4` | **6.22** | EP4CE10E22C8 | Cyclone IV E | ja | **aktiv** seit `.22` |
+| `cyclone_ii` | **1.30** | EP2C5T144C8 | Cyclone II | – | aktiv, über `WillFA7_cii` |
+| `cyclone_iv_v3` | **2.30** | EP4CE6F17C8 | Cyclone IV E | – | aktiv, mit USB-Monitor-API |
+| `cyclone_iv_v4` | **3.30** | EP4CE6E22C8 | Cyclone IV E | – | aktiv ← **Leitvariante** |
+| `cyclone_10` | **4.30** | 10CL006YE144C8G | Cyclone 10 LP | – | aktiv |
+| `cyclone_iv_dev_open` | **5.30** | EP4CE6E22C8 | Cyclone IV E | – | aktiv, Aliexpress-Devboard |
+| `s_cyclone_iv_v4` | **6.30** | EP4CE10E22C8 | Cyclone IV E | ja | **aktiv** seit `.22` |
+
+Seit 21.10.2026 haben alle Varianten außer `cyclone_ii` `HAS_FLASH_ROM` (EPCS16; Cyclone II
+hat nur ein EPCS4).
 
 `BOARD_ID` 7 ist frei. Es gehörte einer Cyclone-10-Fassung der Soundplatine, die nie fertig
 wurde – kein Build, keine Pin-Zuweisungen, eigenes Top-Level mit eingefrorenen Modulkopien.
@@ -32,9 +35,9 @@ Blanking-Leitung · `.21` Monorepo (kein Funktionsunterschied zu `.20`) · `.22`
 im gemeinsamen Top-Level, eine `SD_Card` für alle, Platinenhülle für Cyclone II,
 Soundkarten-Kern auf WISOF 0.9 (Abschnitt 3).
 
-**`.22` ist gebaut, aber nicht veröffentlicht.** `bin/` endet bei `.21`. `release.ps1` läuft
-erst nach bestandenem Hardwaretest – und dann **ohne** `-Note`, weil der `.22`-Eintrag in
-`bin/changelog.txt` bereits ausformuliert ist.
+**x.30 liegt für alle sechs Varianten in `bin/`** – 6.30 seit 16.10.2026, die übrigen seit
+21.10.2026, je eine Release-`.jic` ohne ROMs (Cyclone II: `.pof`) und daneben die lokale
+`*_roms.jic` mit den Spielen im Flash (git-ignoriert). `.22` wurde nie veröffentlicht.
 
 ## 2. Ressourcen auf Funktionsstand `.22`
 
@@ -312,7 +315,7 @@ Abschnitt – mit Datum, Spiel und Fundstelle.
 
 ### Für jedes Board
 
-- **Bootanzeige** zeigt `x.22` – zugleich der Beweis, dass `variant_pkg` und `version_pkg` greifen.
+- **Bootanzeige** zeigt `x.30` – zugleich der Beweis, dass `variant_pkg` und `version_pkg` greifen.
 - **SD-Boot (x.30)**: Spiel startet normal mit einer Karte von `make_sd.bat` (Image-Version 4)
   **und** mit einer alten x.20-Cyclone-IV-Karte. Ein Spiel **oberhalb von Slot 0** ist Pflicht:
   nur daran fällt auf, ob die 24 Sektoren richtig gerechnet werden. Bei `cyclone_ii` zusätzlich
@@ -370,10 +373,13 @@ gelaufen. Die vollständige Liste steht in `docs/soundcard_variant.md`; das Wich
   ganzen Arrays positionsweise zugeordnet wird – Quartus warnt dabei nicht.
 - **DIPs wirken erst nach Neustart** – die 4×4-Matrix wird nur einmal gelesen.
 
-### Zusätzlich: ROMs aus dem Konfigurationsflash (nur WillFA7S, `HAS_FLASH_ROM`)
+### Zusätzlich: ROMs aus dem Konfigurationsflash (`HAS_FLASH_ROM`, alle außer Cyclone II)
 
-Neu seit 16.10.2026, nur auf `s_cyclone_iv_v4`. Erst wenn das hier bestanden ist, bekommen
-die anderen Cyclone-IV/10-Varianten die Konstante, Pins und `device.tcl`-Zeilen.
+Neu seit 16.10.2026 auf `s_cyclone_iv_v4`, seit 21.10.2026 auch auf `cyclone_iv_v3`,
+`cyclone_iv_v4`, `cyclone_10` und `cyclone_iv_dev_open` – **vor** dem Hardwaretest auf der
+WillFA7S nachgezogen. Die Punkte gelten also für jedes dieser Boards; auf denen ohne
+Soundkarte entfällt die Sound-Prüfung. Bei `cyclone_iv_dev_open` ist das EPCS16 nur aus der
+`.cof` übernommen – sitzt dort ein kleineres Flash, läuft die `*_roms.jic` nicht.
 Vorgehen: `CLAUDE.md`, Abschnitt „Konfigurationsflash".
 
 - **Mit SD-Karte**: bootet wie bisher, Prüfsummen auf `display3`/`display4`. Das Flash darf

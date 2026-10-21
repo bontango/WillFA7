@@ -271,3 +271,14 @@
 --        Releases so far: WillFA7S/willfa7_v630.jic (new folder), for the hardware test.
 --        The other variants follow after that test. willfa7_v630_roms.jic next to it is the
 --        local flash image with game roms - git ignored, never published.
+--        21.10.2026: x.30 for the other five boards. HAS_FLASH_ROM is now switched on for
+--        every board with an EPCS16 (all but Cyclone II, which has an EPCS4), ahead of the
+--        hardware test on the WillFA7S - so the flash fallback is untested on every board.
+--        On boards without a sound board only the 12 KByte MPU part of a flash slot is read.
+--        1.30  Cyclone_II/WillFA7_v130.pof            (no flash roms)
+--        2.30  Cyclone_IV/FPGA_board_v3.x/willfa7_v230.jic
+--        3.30  Cyclone_IV/FPGA_board_v4.x/willfa7_v330.jic
+--        4.30  cyclone_10/willfa7_v430.jic
+--        5.30  dev_open/willfa7_v530.jic
+--        Each .jic has a local *_roms.jic next to it with the game roms in the flash -
+--        git ignored, never published.

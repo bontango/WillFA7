@@ -29,7 +29,8 @@ package variant_pkg is
 	constant SD_CHECK_CRC : boolean := false;
 
 	-- Game ROMs from the configuration flash when no SD card answers
-	-- (rtl/common/Flash_ROM.vhd). Only on WillFA7S so far, as a hardware test;
-	-- the other boards follow once it has passed there.
-	constant HAS_FLASH_ROM : boolean := false;
+	-- (rtl/common/Flash_ROM.vhd). EPCS16 on this board too, same layout as WillFA7S:
+	-- game n at 080000h + n * 8000h, of which only the 12 KByte MPU part is read.
+	-- The flash pins are released in device.tcl, placed in pins.tcl.
+	constant HAS_FLASH_ROM : boolean := true;
 end package;

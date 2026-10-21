@@ -23,6 +23,10 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
 
 # --- shared globals --------------------------------------------------------
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
@@ -58,10 +62,6 @@ set_instance_assignment -name VIRTUAL_PIN ON -to SB_Sound
 set_instance_assignment -name VIRTUAL_PIN ON -to SB_Speech
 set_instance_assignment -name VIRTUAL_PIN ON -to SB_Test
 set_instance_assignment -name VIRTUAL_PIN ON -to Dip_Ret_4
-set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_DCLK
-set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_NCS
-set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_ASDO
-set_instance_assignment -name VIRTUAL_PIN ON -to FLASH_DATA0
 
 # --- pins ------------------------------------------------------------------
 set_location_assignment PIN_23 -to clk_50
@@ -146,6 +146,10 @@ set_location_assignment PIN_87 -to W_PA_DIP[0]
 set_location_assignment PIN_80 -to W_PA_DIP[1]
 set_location_assignment PIN_83 -to W_PA_DIP[2]
 set_location_assignment PIN_86 -to W_PA_DIP[3]
+set_location_assignment PIN_12 -to FLASH_DCLK
+set_location_assignment PIN_8 -to FLASH_NCS
+set_location_assignment PIN_6 -to FLASH_ASDO
+set_location_assignment PIN_13 -to FLASH_DATA0
 
 # --- sources ---------------------------------------------------------------
 set_global_assignment -name VHDL_FILE variant_pkg.vhd

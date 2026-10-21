@@ -86,3 +86,11 @@ set_location_assignment PIN_L16 -to W_PA_DIP[3]
 set_location_assignment PIN_T2 -to USB_Rx
 set_location_assignment PIN_R3 -to USB_Tx
 set_location_assignment PIN_N14 -to debug
+
+# Configuration flash EPCS16 (HAS_FLASH_ROM). The dedicated configuration pins of the
+# F17 package, checked against the pin report of 2.30 (~ALTERA_DCLK~ H1, ~ALTERA_DATA0~ H2,
+# ~ALTERA_FLASH_nCE_nCSO~ D2, ~ALTERA_ASDO_DATA1~ C1). Released as regular I/O in device.tcl.
+set_location_assignment PIN_H1 -to FLASH_DCLK
+set_location_assignment PIN_D2 -to FLASH_NCS
+set_location_assignment PIN_C1 -to FLASH_ASDO
+set_location_assignment PIN_H2 -to FLASH_DATA0
