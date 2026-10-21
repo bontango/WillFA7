@@ -156,6 +156,24 @@ begin
 	end if;
 end function;
 
+-- Layout of the game ROMs in the configuration flash (HAS_FLASH_ROM). The boards with
+-- six ROM blocks have an EPCS16: 32 KByte slots from 080000h, MPU and sound ROMs. The
+-- one with five (Cyclone II) has an EPCS4, 512 KByte: there the slot holds only the
+-- 10 KByte the board uses, ROM addresses 0800h-2FFFh, from 030000h - 32 games end at
+-- 07FFFFh exactly. scripts/make_flash_hex.ps1 writes both layouts.
+function fl_layout(full, compact : integer) return integer is
+begin
+	if ROM_COUNT = 6 then
+		return full;
+	else
+		return compact;
+	end if;
+end function;
+constant FL_BASE  : integer := fl_layout(16#080000#, 16#030000#);
+constant FL_SLOT  : integer := fl_layout(SD_CRC_BYTES, 16#2800#);
+constant FL_FIRST : integer := fl_layout(0, 16#0800#);
+constant FL_BYTES : integer := fl_layout(SD_CRC_BYTES, 16#3000#);
+
 signal cpu_clk		:  std_logic;  --894KHz for Williams
 signal mem_clk		:  std_logic;  --894KHz shifted for mem access without glitches
 signal clk_14		:  std_logic; -- 14,28MHz from PLL
@@ -684,11 +702,13 @@ use_flash <= sd_no_card when HAS_FLASH_ROM else '0';
 GEN_FLASH: if HAS_FLASH_ROM generate
 	FLASH_ROM: entity work.Flash_ROM
 	generic map(
-		-- the whole 32 KByte slot, MPU and sound ROMs in one: a board without sound
-		-- board simply drops the upper 20 KByte, nothing in the top level decodes them
-		Read_Bytes => SD_CRC_BYTES,
-		Base_Addr  => 16#080000#,
-		Slot_Bytes => SD_CRC_BYTES
+		-- EPCS16: the whole 32 KByte slot, MPU and sound ROMs in one - a board without
+		-- sound board simply drops the upper 20 KByte, nothing in the top level decodes
+		-- them. EPCS4 (Cyclone II): the compact 10 KByte slot, see FL_BASE above.
+		First_Addr => FL_FIRST,
+		Read_Bytes => FL_BYTES,
+		Base_Addr  => FL_BASE,
+		Slot_Bytes => FL_SLOT
 	)
 	port map(
 		i_Clk => clk_50,

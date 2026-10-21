@@ -32,7 +32,9 @@ package variant_pkg is
 	constant SD_CHECK_CRC : boolean := false;
 
 	-- Game ROMs from the configuration flash when no SD card answers
-	-- (rtl/common/Flash_ROM.vhd). Only on WillFA7S so far, as a hardware test;
-	-- the other boards follow once it has passed there.
-	constant HAS_FLASH_ROM : boolean := false;
+	-- (rtl/common/Flash_ROM.vhd). EPCS4 here: compact 10 KByte slots from 030000h
+	-- (FL_BASE in top/WillFA7.vhd, follows ROM_COUNT = 5). The flash is reached through
+	-- the ASMI block in top/WillFA7_cii.vhd - DCLK and DATA0 have no user I/O on this
+	-- device.
+	constant HAS_FLASH_ROM : boolean := true;
 end package;

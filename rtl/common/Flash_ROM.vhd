@@ -5,6 +5,10 @@
 -- bontango 10.2026
 --
 -- v01 first version.
+-- v02 generic First_Addr: the first ROM address the slot data goes to. Cyclone II
+--     (EPCS4, no rom0) keeps only the 10 KByte from 0800h in a compact 10 KByte slot.
+--     Smaller for the EP2C5, same behaviour: waiting and blinking in 250 ms ticks,
+--     data_rom straight from the shift register.
 --
 -- Flash layout (written by scripts/make_flash_hex.ps1 into a local .jic, see
 -- willfa7_roms.cof of the variant):
@@ -33,7 +37,9 @@ use IEEE.numeric_std.all;
 
 	entity Flash_ROM is
 		generic (
-			-- payload bytes per game, from the start of the slot
+			-- ROM addresses First_Addr .. Read_Bytes - 1 are written, from the first
+			-- byte of the slot on. 0 / 32768 is the full slot, MPU and sound ROMs.
+			First_Addr : integer := 0;
 			Read_Bytes : integer := 32768;
 			-- where game 0 starts in the flash, and how far apart the games are
 			Base_Addr  : integer := 16#080000#;
@@ -80,11 +86,19 @@ use IEEE.numeric_std.all;
 		signal rx_sr    : std_logic_vector(7 downto 0);
 		signal bit_cnt  : integer range 0 to 31;
 		signal in_cmd   : std_logic;                     -- '1' while the 32 command bits go out
-		signal div      : integer range 0 to 255;
+		signal div      : integer range 0 to Half_Period - 1;
 		signal vec_ok   : std_logic;                     -- a reset vector byte was not FF
-		signal counter  : integer range 0 to 100000000;
+		-- All waiting is done in 250 ms ticks: one counter and one comparator instead
+		-- of four comparators on 27 bits. Cyclone II has no LAB to spare.
+		constant TICK_CYCLES : integer := 12500000;      -- 250 ms @ 50 MHz
+		signal counter  : integer range 0 to TICK_CYCLES - 1;
+		signal ticks    : integer range 0 to 7;
 		signal blink_remaining : integer range 0 to 15;
 	begin
+
+		-- The byte goes to the ROM straight out of the shift register: it does not move
+		-- between the last bit and wr_rom, the next bit only starts after inc_addr.
+		data_rom <= rx_sr;
 
 		Flash: process (i_Clk)
 		begin
@@ -95,8 +109,7 @@ use IEEE.numeric_std.all;
 				o_Flash_MOSI <= '0';
 				cpu_reset_l <= '0';
 				wr_rom <= '0';
-				address_rom <= (others => '0');
-				data_rom <= x"FF";
+				address_rom <= std_logic_vector(to_unsigned(First_Addr, address_rom'length));
 				Flash_error <= '1'; -- active low
 				flash_empty <= '0';
 				vec_ok <= '0';
@@ -104,6 +117,7 @@ use IEEE.numeric_std.all;
 				bit_cnt <= 0;
 				in_cmd <= '0';
 				counter <= 0;
+				ticks <= 0;
 				blink_remaining <= 0;
 				state <= start;
 			else
@@ -144,7 +158,6 @@ use IEEE.numeric_std.all;
 								bit_cnt <= 7;
 								state <= bit_low;
 							else
-								data_rom <= rx_sr;
 								state <= write_byte;
 							end if;
 						else
@@ -179,6 +192,7 @@ use IEEE.numeric_std.all;
 
 				when check_vector =>
 					counter <= 0;
+					ticks <= 0;
 					if vec_ok = '1' then
 						state <= all_done;
 					else
@@ -189,32 +203,47 @@ use IEEE.numeric_std.all;
 					end if;
 
 				when all_done =>
-					-- wait a bit, then start cpu - same 500 ms as SD_Card
-					if ( counter < 25000000 ) then
+					-- wait a bit, then start cpu - same 500 ms (two ticks) as SD_Card
+					if counter < TICK_CYCLES - 1 then
 						counter <= counter + 1;
 					else
-						cpu_reset_l <= '1';
-						Flash_error <= '1'; --active low
+						counter <= 0;
+						if ticks = 1 then
+							cpu_reset_l <= '1';
+							Flash_error <= '1'; --active low
+						else
+							ticks <= ticks + 1;
+						end if;
 					end if;
 
 				when error =>
-					-- Blink ERR_CODE times (LED active low: '0' = on), then ~2 s gap,
+					-- Blink ERR_CODE times (LED active low: '0' = on), then 2 s gap,
 					-- repeat forever. Per blink: 250 ms ON, 250 ms OFF. As in SD_Card.
-					counter <= counter + 1;
-					if blink_remaining = 0 then
-						Flash_error <= '1';
-						if counter >= 100000000 then -- 2 s @ 50 MHz
-							counter <= 0;
-							blink_remaining <= ERR_CODE;
-						end if;
+					if blink_remaining /= 0 and ticks = 0 then
+						Flash_error <= '0';
 					else
-						if counter < 12500000 then       -- 0..250 ms: LED on
-							Flash_error <= '0';
-						elsif counter < 25000000 then    -- 250..500 ms: LED off
-							Flash_error <= '1';
-						else                              -- end of one blink
-							counter <= 0;
-							blink_remaining <= blink_remaining - 1;
+						Flash_error <= '1';
+					end if;
+					if counter < TICK_CYCLES - 1 then
+						counter <= counter + 1;
+					else
+						counter <= 0;
+						if blink_remaining = 0 then
+							-- gap, eight ticks
+							if ticks = 7 then
+								ticks <= 0;
+								blink_remaining <= ERR_CODE;
+							else
+								ticks <= ticks + 1;
+							end if;
+						else
+							-- one blink, tick 0 on, tick 1 off
+							if ticks = 1 then
+								ticks <= 0;
+								blink_remaining <= blink_remaining - 1;
+							else
+								ticks <= ticks + 1;
+							end if;
 						end if;
 					end if;
 

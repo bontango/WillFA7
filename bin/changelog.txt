@@ -282,3 +282,15 @@
 --        5.30  dev_open/willfa7_v530.jic
 --        Each .jic has a local *_roms.jic next to it with the game roms in the flash -
 --        git ignored, never published.
+--        21.10.2026, later: 1.30 REPLACED. Cyclone II has the flash fallback now as well -
+--        the earlier 1.30 of the same day did not. Its EPCS4 is too small for the 32 KByte
+--        slots, so this board uses a compact layout: 10 KByte per game (ROM 0800h-2FFFh,
+--        no rom0 here) from 030000h, 32 games end at 07FFFFh. DCLK and DATA0 have no user
+--        I/O on Cyclone II; the flash is read through the ASMI block in WillFA7_cii.vhd.
+--        Flash_ROM v02 is smaller (250 ms ticks, data_rom from the shift register) so the
+--        EP2C5 fits: 4525 / 4608 LE. Same behaviour on every board; the 2.30 .. 6.30 files
+--        in bin/ were built with v01 and stay as they are.
+--        1.30  Cyclone_II/WillFA7_v130.pof   (replaced, no game roms)
+--        The local Cyclone_II/willfa7_v130_roms.jic carries the roms. It is a .jic, not a
+--        .pof: Quartus 13.0sp1 quartus_cpf fails on a .pof with a hex block. Program it
+--        over JTAG (flash loader). Git ignored, never published.

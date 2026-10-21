@@ -109,7 +109,38 @@ entity WillFA7_cii is
 end;
 
 architecture rtl of WillFA7_cii is
+	-- The configuration flash of this board (EPCS4) as second ROM source. On Cyclone II
+	-- DCLK and DATA0 are dedicated configuration pins without user I/O, so the core's
+	-- FLASH_* ports cannot go to pins as on Cyclone IV. The ASMI block is the hard
+	-- macro that reaches all four configuration lines from the fabric - the same one
+	-- Altera's EPCS controller uses. oe is active low: '0' = the block drives the pins.
+	-- Declared here instead of 'library cycloneii': this file is in every variant's
+	-- file list, and Quartus 22.1 has no cycloneii library. It is only elaborated where
+	-- WillFA7_cii is the top level.
+	component cycloneii_asmiblock
+		port(
+			data0out : out std_logic;
+			dclkin   : in std_logic;
+			oe       : in std_logic;
+			scein    : in std_logic;
+			sdoin    : in std_logic
+		);
+	end component;
+
+	signal flash_dclk  : std_logic;
+	signal flash_ncs   : std_logic;
+	signal flash_asdo  : std_logic;
+	signal flash_data0 : std_logic;
 begin
+
+ASMI: cycloneii_asmiblock
+port map(
+	data0out => flash_data0,
+	dclkin   => flash_dclk,
+	oe       => '0',
+	scein    => flash_ncs,
+	sdoin    => flash_asdo
+);
 
 -- The instance label CORE is part of the node names the .sdc addresses. Do not
 -- rename it without editing variants/cyclone_ii/WillFA7.sdc in the same commit.
@@ -177,12 +208,11 @@ port map(
 	SB_Test			=> '1',
 	Dip_Ret_4		=> '1',
 
-	-- Configuration flash as ROM source (HAS_FLASH_ROM): not on this board, its EPCS4
-	-- has no room. DATA0 reads '1', which is what an idle flash line reads anyway.
-	FLASH_DCLK		=> open,
-	FLASH_NCS		=> open,
-	FLASH_ASDO		=> open,
-	FLASH_DATA0		=> '1'
+	-- Configuration flash as ROM source (HAS_FLASH_ROM), through the ASMI block above.
+	FLASH_DCLK		=> flash_dclk,
+	FLASH_NCS		=> flash_ncs,
+	FLASH_ASDO		=> flash_asdo,
+	FLASH_DATA0		=> flash_data0
 );
 
 end rtl;

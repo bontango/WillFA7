@@ -17,8 +17,9 @@ Soundkarten-Variante.** Alle sechs Varianten bauen aus **einem** `top/WillFA7.vh
 | `cyclone_iv_dev_open` | **5.30** | EP4CE6E22C8 | Cyclone IV E | – | aktiv, Aliexpress-Devboard |
 | `s_cyclone_iv_v4` | **6.30** | EP4CE10E22C8 | Cyclone IV E | ja | **aktiv** seit `.22` |
 
-Seit 21.10.2026 haben alle Varianten außer `cyclone_ii` `HAS_FLASH_ROM` (EPCS16; Cyclone II
-hat nur ein EPCS4).
+Seit 21.10.2026 haben alle Varianten `HAS_FLASH_ROM`. Cyclone II hat nur ein EPCS4 und
+liest deshalb ein kompaktes Layout (10 KByte je Spiel ab 030000h) über den ASMI-Block –
+die 1.30 vom Vormittag des 21.10. hatte das noch nicht und ist ersetzt.
 
 `BOARD_ID` 7 ist frei. Es gehörte einer Cyclone-10-Fassung der Soundplatine, die nie fertig
 wurde – kein Build, keine Pin-Zuweisungen, eigenes Top-Level mit eingefrorenen Modulkopien.
@@ -298,9 +299,10 @@ gehört deshalb in `.22` und nicht in eine eigene Nummer.
 
 1. **Die Pins PIN_26/27/73 der Cyclone-II-Platine** sollten gegen den Schaltplan geprüft
    werden – 1.21 hat sie getrieben (Abschnitt 3a).
-2. **Cyclone II bei 96 %** (4404 von 4608, seit der CRC-Prüfung) – der nächste
-   Funktionszuwachs passt dort nur, wenn er per `variant_pkg` weggeneriert werden kann.
-   Der nächstliegende Hebel wäre `SD_CHECK_CRC = false`, das gäbe 92 LE zurück.
+2. **Cyclone II bei 98 %** (4525 von 4608, 286 von 288 LABs, seit dem Flash-Rückfall am
+   21.10.2026; die CRC-Prüfung ist seit x.30 aus) – **voll**. Der nächste Funktionszuwachs
+   passt dort nur, wenn er per `variant_pkg` weggeneriert wird. Der erste Versuch mit
+   `Flash_ROM` v01 scheiterte an einem LAB (289 von 288).
 3. Die `.sdc` von `cyclone_ii` ist eine von Quartus 13 **generierte** Datei, nicht der
    handgeschriebene Satz der anderen. Funktioniert, ist aber ein Fremdkörper – und seit `.22`
    einer, an dem von Hand nachgezogen werden muss (Abschnitt 3a).
@@ -373,11 +375,13 @@ gelaufen. Die vollständige Liste steht in `docs/soundcard_variant.md`; das Wich
   ganzen Arrays positionsweise zugeordnet wird – Quartus warnt dabei nicht.
 - **DIPs wirken erst nach Neustart** – die 4×4-Matrix wird nur einmal gelesen.
 
-### Zusätzlich: ROMs aus dem Konfigurationsflash (`HAS_FLASH_ROM`, alle außer Cyclone II)
+### Zusätzlich: ROMs aus dem Konfigurationsflash (`HAS_FLASH_ROM`, alle Boards)
 
 Neu seit 16.10.2026 auf `s_cyclone_iv_v4`, seit 21.10.2026 auch auf `cyclone_iv_v3`,
-`cyclone_iv_v4`, `cyclone_10` und `cyclone_iv_dev_open` – **vor** dem Hardwaretest auf der
-WillFA7S nachgezogen. Die Punkte gelten also für jedes dieser Boards; auf denen ohne
+`cyclone_iv_v4`, `cyclone_10`, `cyclone_iv_dev_open` und `cyclone_ii` – **vor** dem
+Hardwaretest auf der WillFA7S nachgezogen. Auf `cyclone_ii` zusätzlich prüfen: der ASMI-Block
+liest überhaupt (sonst Fehler 8 trotz gebrannter `willfa7_v130_roms.jic`), und das Board bootet
+nach dem Brennen der ROM-`.jic` noch – das zeigt, dass der Bitstream bei 0 liegt. Die Punkte gelten also für jedes dieser Boards; auf denen ohne
 Soundkarte entfällt die Sound-Prüfung. Bei `cyclone_iv_dev_open` ist das EPCS16 nur aus der
 `.cof` übernommen – sitzt dort ein kleineres Flash, läuft die `*_roms.jic` nicht.
 Vorgehen: `CLAUDE.md`, Abschnitt „Konfigurationsflash".

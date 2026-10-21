@@ -12,6 +12,11 @@
               sector 1428 + n * 40    game n, 20 KByte sound board ROMs
       flash   080000h + n * 8000h     game n, MPU ROMs, then sound board ROMs (32 KByte)
 
+  With -CycloneII the flash is an EPCS4 (512 KByte) and the board has no rom0, so the
+  slot is compact - only the 10 KByte of ROM addresses 0800h..2FFFh:
+
+      flash   030000h + n * 2800h     game n, MPU ROMs from 0800h (10 KByte)
+
   An x.20 Cyclone IV card (image version 2.1) has the MPU part only; with that the
   sound half of each flash slot stays FF, which is fine for every board without a
   sound board. Use -NoSound for such a card, otherwise whatever lies behind slot 31
@@ -38,6 +43,10 @@
 .PARAMETER NoSound
   With -Image: read the MPU part only (x.20 card, or a board without sound board).
 
+.PARAMETER CycloneII
+  The compact EPCS4 layout of the Cyclone II board (FL_BASE etc. in top/WillFA7.vhd).
+  Implies -NoSound.
+
 .PARAMETER Out
   The .hex file to write.
 
@@ -53,6 +62,7 @@ param(
     [string[]]$SlotFiles,
     [string[]]$SoundFiles,
     [switch]$NoSound,
+    [switch]$CycloneII,
     [Parameter(Mandatory = $true)][string]$Out,
     [int]$Games = 32
 )
@@ -67,6 +77,13 @@ $SoundBytes   = 20480     # 40 sectors
 # flash layout, see rtl/common/Flash_ROM.vhd
 $FlashBase    = 0x080000
 $FlashSlot    = 0x8000
+$SlotFirst    = 0         # first byte of the 32 KByte game slot that goes into the flash
+if ($CycloneII) {
+    $FlashBase = 0x030000
+    $FlashSlot = 0x2800
+    $SlotFirst = 0x0800   # no rom0 on this board
+    $NoSound   = $true
+}
 
 if ((-not $Image) -and (-not $SlotFiles)) { throw 'Give -Image or -SlotFiles.' }
 if ($Image -and $SlotFiles) { throw 'Give -Image or -SlotFiles, not both.' }
@@ -149,7 +166,7 @@ $warn = 0
 for ($n = 0; $n -lt $slots.Count; $n++) {
     $s = $slots[$n]
     $addr = $FlashBase + $n * $FlashSlot
-    if ([WillFAFlash]::Blank($s, 0, $MpuBytes)) {
+    if ([WillFAFlash]::Blank($s, $SlotFirst, $MpuBytes - $SlotFirst)) {
         Write-Host ('game {0,2}: empty, left out' -f $n) -ForegroundColor DarkGray
         continue
     }
@@ -163,7 +180,8 @@ for ($n = 0; $n -lt $slots.Count; $n++) {
     } else {
         Write-Host $line
     }
-    [WillFAFlash]::Data($sb, $addr, $s, 0, $s.Length)
+    if ($CycloneII) { $len = $MpuBytes - $SlotFirst } else { $len = $s.Length }
+    [WillFAFlash]::Data($sb, $addr, $s, $SlotFirst, $len)
     $written++
 }
 [WillFAFlash]::End($sb)

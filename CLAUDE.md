@@ -28,7 +28,7 @@ nicht versionierte Doku – Handbücher, Schaltpläne, Target3001, ROMs, SD-Imag
   Top-Level laufen `game_option` (`6 downto 1`) gegen `read_the_dips`/`read_the_dips_s`
   (`1 to 6`) – dort ist die Spiegelung gewollt und hardwareverifiziert, `game_option(n)` ist
   DIP *n*. Nicht „geradeziehen".
-- **Cyclone II ist die harte Randbedingung** (4312 / 4608 LE = 94 %). Was dort nicht passt,
+- **Cyclone II ist die harte Randbedingung** (4525 / 4608 LE = 98 %, 286 von 288 LABs seit dem Flash-Rückfall). Was dort nicht passt,
   passt nirgends. Optionale Blöcke müssen per `if ... generate` **weggenerieren** – nicht darauf
   hoffen, dass Quartus sie wegoptimiert.
 - **`SPI_Master.vhd` nicht ohne ausdrückliche Aufforderung ändern** – hat schon Regressionen
@@ -66,7 +66,7 @@ archive/         historische Modulstaende, in keinem Build
 
 | `variants/<name>` | Version | FPGA | Quartus | Stand |
 |---|---|---|---|---|
-| `cyclone_ii` | 1.30 | EP2C5T144C8 | **13.0sp1** | aktiv, 93 % LE, baut über `WillFA7_cii` |
+| `cyclone_ii` | 1.30 | EP2C5T144C8 | **13.0sp1** | aktiv, 98 % LE, baut über `WillFA7_cii` |
 | `cyclone_iv_v3` | 2.30 | EP4CE6F17C8 | 22.1std | aktiv, mit USB-Monitor-API |
 | `cyclone_iv_v4` | 3.30 | EP4CE6E22C8 | 22.1std | aktiv, **Leitvariante** |
 | `cyclone_10` | 4.30 | 10CL006YE144C8G | 22.1std | aktiv |
@@ -117,7 +117,7 @@ darf, eine Änderung von der ersten Zeile bis zum Release – steht in `WORKFLOW
 | `ROM_COUNT` | 5 oder 6 ROM-Bloecke à 2K. 5 heisst: kein rom0, Fenster 0 des Images wird gelesen und verworfen, 5000h–57FF liest FF, Defender und Star Light laufen nicht. **Seit `.22` kein Kartenformat mehr** – das ist für alle gleich. |
 | `HAS_MONITOR` | USB-Monitor-API, ca. 550 LE |
 | `HAS_SOUND` | integrierte Soundkarte, ca. 850 LE und 165 kBit. Aendert ausserdem die DIP-Matrix und ist das einzige, was den Soundbereich der Karte liest (zweiter Lesedurchgang von `SD_Card`). **`docs/soundcard_variant.md`** |
-| `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Seit x.30 auf allen Varianten außer `cyclone_ii`** (EPCS4, kein Platz); in Hardware noch auf keinem Board getestet. Abschnitt „Konfigurationsflash" unten. |
+| `HAS_FLASH_ROM` | Spiel-ROMs aus dem Konfigurationsflash, wenn keine SD-Karte antwortet (`rtl/common/Flash_ROM.vhd`). **Seit x.30 auf allen Varianten**, auf `cyclone_ii` mit kompaktem Layout (EPCS4) über den ASMI-Block; in Hardware noch auf keinem Board getestet. Abschnitt „Konfigurationsflash" unten. |
 | `SD_CHECK_CRC` | CRC16-CCITT der Karte prüfen. **Seit x.30 überall `false`** – die Karte trägt keine CRC mehr (x.20-Format). Die Logik ist in `SD_Card` geblieben, passt aber nicht zum Soundbereich. |
 
 `variants/<name>/variant.psd1` (von den Skripten gelesen): `RtlFamily`, `Options`,
@@ -173,7 +173,7 @@ Quartus-Hierarchienamen und die Constraints brechen stumm.
 | cpu68 | `rtl/common/cpu68.vhd` | Motorola 6800/6801 (OpenCores, John E. Kent, GPL), v0.85 |
 | pia6821 | `rtl/common/pia6821.vhd` | PIA, 5 Instanzen |
 | SD_Card | `rtl/common/SD_Card.vhd` | SPI-SD-Controller, lädt die Spiel-ROMs. Generics `Read_Bytes`, `Slot_Sectors`, `Check_CRC`, `CRC_Bytes`, dazu seit x.30 `Sound_*` für den zweiten Lesedurchgang (nur `HAS_SOUND`). Überall 24 Sektoren je Spiel, keine CRC |
-| Flash_ROM | `rtl/common/Flash_ROM.vhd` | liest die Spiel-ROMs aus dem EPCS16, wenn `SD_Card` „keine Karte" meldet (`o_no_card`, Fehler 1–4). Nur `HAS_FLASH_ROM` |
+| Flash_ROM | `rtl/common/Flash_ROM.vhd` | liest die Spiel-ROMs aus dem EPCS16 (Cyclone II: EPCS4), wenn `SD_Card` „keine Karte" meldet (`o_no_card`, Fehler 1–4). Nur `HAS_FLASH_ROM` |
 | crc16_ccitt | `rtl/sound/crc16_ccitt.vhd` | LFSR für die Kartenprüfsumme. Liegt aus historischen Gründen unter `rtl/sound/`, gehört seit `.22` aber zu jedem Build |
 | EEprom | `rtl/common/EEprom.vhd` | SPI-EEPROM (M95256 / M95512), Spielstand |
 | williams_pll | `rtl/<familie>/williams_pll.vhd` | 50 MHz → 14,28 MHz |
@@ -313,7 +313,15 @@ EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) +
          0x080000 + n*0x8000   Spiel n, 32 KByte: 12 KByte MPU-ROMs, dann 20 KByte
                                Soundkarten-ROMs (auf der Karte zwei Bereiche, hier
                                zusammen) -> Spiel 0..31 bis 0x17FFFF
+
+EPCS4    0x000000 - 0x02FFFF   Bitstream EP2C5 (in der .jic bis 0x026A0F) + Reserve
+(Cyclone II)
+         0x030000 + n*0x2800   Spiel n, 10 KByte: ROM 0800h-2FFFh (kein rom0)
+                               -> Spiel 0..31 bis 0x07FFFF, genau das Ende des EPCS4
 ```
+
+Welches Layout gilt, folgt aus `ROM_COUNT` (`FL_BASE`/`FL_SLOT`/`FL_FIRST`/`FL_BYTES` in
+`top/WillFA7.vhd`, Generic `First_Addr` an `Flash_ROM` v02).
 
 - **Keine CRC im Flash.** Kein Steckkontakt, kein Dateisystem, und der Programmer prüft beim
   Schreiben. Geprüft wird nur gegen **leeren** Flash: der Reset-Vektor (Slot 2FFEh/2FFFh =
@@ -329,11 +337,22 @@ EPCS16   0x000000 - 0x07FFFF   Bitstream (EP4CE10 unkomprimiert ca. 368 KByte) +
   `output_files\`, das git ignoriert. Als `bin/<Ordner>/willfa7_v<nnn>_roms.jic` darf die
   Datei für den lokalen Gebrauch neben dem Release liegen – `*_roms.jic` ist in `.gitignore`,
   geht also nie zu GitHub. Eine Hex reicht für alle Boards ohne Soundkarte (`-NoSound`).
+- **Cyclone II:** Hex mit `make_flash_hex.ps1 -CycloneII` (kompaktes Layout, ohne Sound).
+  Die ROM-Datei ist auch dort eine **`.jic`** (JTAG, Flash-Loader), keine `.pof`:
+  `quartus_cpf` von 13.0sp1 bricht bei einer `.pof` mit Hex-Block ab, in jedem `mode`.
+  In `willfa7_roms.cof` steht `<start_address>00000000</start_address>` an `Page_0`:
+  ohne die Zeile legt Quartus 13 den Bitstream **hinter** die Hex-Daten, und das Board
+  bootet nicht mehr. Kontrolle immer in `willfa7_roms.map`: `Page_0` muss bei 0x00000000
+  beginnen.
 - **Pins:** die vier Konfigurationspins (E22/E144: DCLK 12, DATA0 13, nCSO 8, ASDO 6;
   F17 der `cyclone_iv_v3`: DCLK H1, DATA0 H2, nCSO D2, ASDO C1) als
   `FLASH_DCLK`, `FLASH_DATA0`, `FLASH_NCS`, `FLASH_ASDO` in `pins.tcl`; `device.tcl` gibt
   DATA0, DATA1/ASDO, FLASH_NCE und DCLK nach der Konfiguration als normale I/O frei.
-  Cyclone II hat kein `HAS_FLASH_ROM` und lässt die Ports in der Hülle offen (EPCS4, kein Platz).
+  **Cyclone II** hat dafür keine Pins: DCLK und DATA0 sind dort reine Konfigurationspins
+  ohne User-I/O. Die Hülle `top/WillFA7_cii.vhd` verbindet die vier `FLASH_*` des Kerns
+  mit dem Hardmakro `cycloneii_asmiblock` (`oe` low-aktiv, wie in Alteras EPCS-Controller),
+  als lokale Komponente – Quartus 22.1 kennt keine `cycloneii`-Bibliothek, und die Hülle
+  steht in jeder Dateiliste.
 
 ## LED-Ausgänge mit Doppelfunktion
 
