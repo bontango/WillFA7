@@ -312,6 +312,14 @@ gehört deshalb in `.22` und nicht in eine eigene Nummer.
 **Kein Board ist auf `.21` oder `.22` bestätigt getestet.** Der letzte in Hardware getestete
 Stand ist **3.20** auf der Cyclone-IV-v4-Platine.
 
+**21.10.2026, 1.30 (Cyclone II), Teiltest bestanden:** Boot aus dem Flash ohne SD-Karte,
+Spiel **17** (Alien Poker), mit `willfa7_v130_roms.jic`. Damit belegt: der ASMI-Block liest,
+der Bitstream liegt nach dem Brennen der ROM-`.jic` bei 0 (das Board bootet), die
+Slot-Adresse oberhalb von Spiel 0 stimmt (030000h + 17 × 2800h), und die Bit-Reihenfolge
+der ROM-Daten ist richtig (siehe Flash-Abschnitt unten). **Nicht** geprüft: Boot mit Karte,
+Fehler 8 mit der ROM-freien `.pof`, eine zweite Spielnummer, alle übrigen Punkte der Liste.
+Die übrigen Boards sind auf x.30 weiterhin ungetestet.
+
 **Der Test der WillFA7S läuft seit 02.08.2026.** Das Ergebnis gehört hierher, in diesen
 Abschnitt – mit Datum, Spiel und Fundstelle.
 
@@ -397,7 +405,10 @@ Vorgehen: `CLAUDE.md`, Abschnitt „Konfigurationsflash".
 - **Karte da, aber kaputt** (Fehler 5 oder 6): **kein** Rückfall auf das Flash. Fehler 7
   gibt es seit x.30 nicht mehr (keine CRC).
 - **Programmer „Verify"** nach dem Brennen von `willfa7_roms.jic` ohne Fehler.
-- **Bit-Reihenfolge** ist der eine Punkt, der sich nur in Hardware klären lässt. Die `.jic`
+- **Bit-Reihenfolge – auf Cyclone II am 21.10.2026 bestätigt richtig** (Spiel 17 startet
+  aus dem Flash). Auf den EPCS16-Boards ist es dieselbe `.jic`-Aufbereitung und derselbe
+  `Flash_ROM`, nur über Pins statt ASMI-Block; dort gilt es als wahrscheinlich, nicht als
+  geprüft. Ursprüngliche Überlegung: Die `.jic`
   enthält den Bitstream wie die `.rbf` und die ROM-Daten bitgespiegelt – beides wird also
   gleich behandelt, und `Flash_ROM` liest MSB first, wie das Flash sendet. Startet das Spiel
   aus dem Flash trotzdem nicht (Fehler 8 trotz gebrannter ROMs, oder wirres Verhalten),
