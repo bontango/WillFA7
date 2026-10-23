@@ -7,6 +7,13 @@ The board loads the game ROMs from an SD card, keeps the game settings in an SPI
 EEPROM and drives the original driver board, displays, switch matrix and solenoids
 of the machine.
 
+## User manuals
+
+**Read online:** <https://bontango.github.io/WillFA7/>
+
+- [WillFA7 user manual](https://bontango.github.io/WillFA7/WillFA7_HWv1_x_user_manual.html)
+- [WillFA7S user manual](https://bontango.github.io/WillFA7/WillFA7S_HWv1_x_user_manual.html) (with the sound board on the FPGA)
+
 ## One design, six boards
 
 The same design runs on six different FPGA boards. They share **one** top level
