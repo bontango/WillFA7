@@ -11,8 +11,8 @@ of the machine.
 
 **Read online:** <https://bontango.github.io/WillFA7/>
 
-- [WillFA7 user manual](https://bontango.github.io/WillFA7/WillFA7_HWv1_x_user_manual.html)
-- [WillFA7S user manual](https://bontango.github.io/WillFA7/WillFA7S_HWv1_x_user_manual.html) (with the sound board on the FPGA)
+- WillFA7: [user manual (English)](https://bontango.github.io/WillFA7/WillFA7_HWv1_x_user_manual.html) · [Bedienungsanleitung (Deutsch)](https://bontango.github.io/WillFA7/WillFA7_HWv1_x_Bedienungsanleitung.html) · [manuel d'utilisation (Français)](https://bontango.github.io/WillFA7/WillFA7_HWv1_x_manuel_utilisateur.html)
+- WillFA7S, with the sound board on the FPGA: [user manual (English)](https://bontango.github.io/WillFA7/WillFA7S_HWv1_x_user_manual.html) · [Bedienungsanleitung (Deutsch)](https://bontango.github.io/WillFA7/WillFA7S_HWv1_x_Bedienungsanleitung.html) · [manuel d'utilisation (Français)](https://bontango.github.io/WillFA7/WillFA7S_HWv1_x_manuel_utilisateur.html)
 
 ## One design, six boards
 
@@ -53,7 +53,7 @@ variants/<name>/ variant_pkg.vhd, device.tcl, pins.tcl, variant.psd1,
 scripts/         gen_qsf.ps1, check.ps1, build.ps1, release.ps1 and the file lists
 bin/             release binaries and changelog.txt
 docs/            analyses (switch masks, blanking, EEprom, special solenoids) and the
-                 two user manuals (HTML), WillFA7 and WillFA7S
+                 user manuals (HTML, en/de/fr), WillFA7 and WillFA7S
 archive/         historic module versions, not part of any build
 ```
 
