@@ -57,8 +57,10 @@ scripts/         gen_qsf.ps1 · check.ps1 · build.ps1 · release.ps1 · files_*
 bin/             Release-Binaries + changelog.txt
 docs/            Analysen (Switch-Masken, Blanking, EEprom, Spezialsolenoide, Speicherbilanz
                  der S-Variante) und die
-                 beiden User Manuals (WillFA7 und WillFA7S). Manuals ohne Versionsnummer
-                 im Dateinamen - die Version steht im Kopf des Dokuments
+                 beiden User Manuals (WillFA7 und WillFA7S) als HTML - seit 23.10.2026 die
+                 einzige Fassung, direkt bearbeiten (CSS im Kopf, Bilder als JPEG eingebettet;
+                 user_manual_media/ haelt die Original-PNGs). Ohne Versionsnummer im
+                 Dateinamen - die Version steht im Kopf des Dokuments
 archive/         historische Modulstaende, in keinem Build
 ```
 

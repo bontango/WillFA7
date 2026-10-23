@@ -46,7 +46,7 @@ variants/<name>/ variant_pkg.vhd, device.tcl, pins.tcl, variant.psd1,
 scripts/         gen_qsf.ps1, check.ps1, build.ps1, release.ps1 and the file lists
 bin/             release binaries and changelog.txt
 docs/            analyses (switch masks, blanking, EEprom, special solenoids) and the
-                 two user manuals, WillFA7 and WillFA7S
+                 two user manuals (HTML), WillFA7 and WillFA7S
 archive/         historic module versions, not part of any build
 ```
 
